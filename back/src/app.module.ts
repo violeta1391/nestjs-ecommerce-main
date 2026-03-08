@@ -7,6 +7,7 @@ import { TypeOrmConfigService } from './database/typeorm/typeorm.service';
 import { ApiModule } from './api/api.module';
 import { EventsModule } from './events/events.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { NotificationModule } from './notification/notification.module';
 import { configuration } from './config';
 
 @Module({
@@ -15,6 +16,7 @@ import { configuration } from './config';
     TypeOrmModule.forRootAsync({ useClass: TypeOrmConfigService }),
     EventsModule,
     InventoryModule,
+    NotificationModule,
     ApiModule,
   ],
   controllers: [AppController],

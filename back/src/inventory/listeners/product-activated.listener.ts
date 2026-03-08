@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectEntityManager } from '@nestjs/typeorm';
+import { EntityManager } from 'typeorm';
 import { Inventory } from 'src/database/entities/inventory.entity';
+import { ProductVariation } from 'src/database/entities/productVariation.entity';
 import { ProductActivatedEvent } from 'src/events/domain/product-activated.event';
 
 @Injectable()
@@ -10,8 +11,8 @@ export class ProductActivatedListener {
   private readonly logger = new Logger(ProductActivatedListener.name);
 
   constructor(
-    @InjectRepository(Inventory)
-    private readonly inventoryRepository: Repository<Inventory>,
+    @InjectEntityManager()
+    private readonly entityManager: EntityManager,
   ) {}
 
   @OnEvent(ProductActivatedEvent.EVENT_NAME, { async: true })
@@ -20,11 +21,40 @@ export class ProductActivatedListener {
       `[product.activated] productId=${event.productId}, merchantId=${event.merchantId}, categoryId=${event.categoryId}`,
     );
 
-    // Punto de extensión desacoplado: aquí se puede inicializar stock,
-    // notificar sistemas externos, disparar reindexación de búsqueda, etc.
-    // sin tocar ProductService.
+    // Consultar variaciones del producto activado.
+    // ProductService no sabe nada de este módulo — el desacoplamiento opera aquí.
+    const variations = await this.entityManager.find(ProductVariation, {
+      where: { productId: event.productId },
+    });
+
+    if (variations.length === 0) {
+      this.logger.log(
+        `Product ${event.productId} has no variations yet — inventory will be set up when variations are added`,
+      );
+      return;
+    }
+
     this.logger.log(
-      `Inventory initialization ready for product ${event.productId}`,
+      `Auditing inventory state for ${variations.length} variation(s) of product ${event.productId}`,
     );
+
+    // Para cada variación verificar si ya existe un registro de inventario.
+    // Extensión natural: reemplazar el log por entityManager.save(Inventory, {...})
+    // cuando se conozcan el país y el stock inicial de cada variación.
+    for (const variation of variations) {
+      const existing = await this.entityManager.findOne(Inventory, {
+        where: { productVariationId: variation.id },
+      });
+
+      if (!existing) {
+        this.logger.log(
+          `[inventory] Variation ${variation.id} — no stock record yet (pending country and quantity assignment)`,
+        );
+      } else {
+        this.logger.log(
+          `[inventory] Variation ${variation.id} — current stock: ${existing.quantity} units (country: ${existing.countryCode})`,
+        );
+      }
+    }
   }
 }

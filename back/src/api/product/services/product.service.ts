@@ -136,6 +136,12 @@ export class ProductService {
 
     const result = await query.returning(['id', 'isActive']).execute();
 
+    // Verificar que el UPDATE afectó filas ANTES de emitir el evento.
+    // Sin este guard, un producto no encontrado (race condition o merchantId incorrecto)
+    // dispararía el evento aunque la operación no haya tenido efecto en DB.
+    if (result.affected < 1)
+      throw new NotFoundException(errorMessages.product.notFound);
+
     this.eventEmitter.emit(
       ProductActivatedEvent.EVENT_NAME,
       new ProductActivatedEvent(productId, merchantId, product.categoryId),
