@@ -1,0 +1,511 @@
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { useAuth } from '@/lib/context/AuthContext';
+import {
+  listProducts,
+  createProduct,
+  addProductDetails,
+  activateProduct,
+  deactivateProduct,
+  getProduct,
+  Product,
+} from '@/lib/api/products';
+
+const CATEGORY_NAMES: Record<number, string> = { 1: 'Computadoras', 2: 'Moda' };
+
+interface EventEntry {
+  id: number;
+  name: string;
+  payload: Record<string, unknown>;
+  listener?: string;
+  timestamp: string;
+}
+
+type WizardStep = 1 | 2 | 3 | 4;
+
+/* ───────────────────────────────────────────
+   Main page
+─────────────────────────────────────────── */
+export default function InventoryPage() {
+  const { isAdmin, isMerchant } = useAuth();
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [listError, setListError] = useState('');
+  const [showWizard, setShowWizard] = useState(false);
+  const [events, setEvents] = useState<EventEntry[]>([]);
+
+  // Activation/Deactivation inline loading per product
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+
+  const fetchProducts = useCallback(async () => {
+    setLoadingList(true);
+    setListError('');
+    try {
+      const data = await listProducts();
+      setProducts(data);
+    } catch (e: unknown) {
+      setListError(e instanceof Error ? e.message : 'Error al cargar productos');
+    } finally {
+      setLoadingList(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  const addEvent = (name: string, payload: Record<string, unknown>, listener?: string) => {
+    setEvents((prev) => [
+      { id: Date.now(), name, payload, listener, timestamp: new Date().toLocaleTimeString() },
+      ...prev,
+    ]);
+  };
+
+  const handleActivate = async (product: Product) => {
+    setTogglingId(product.id);
+    try {
+      await activateProduct(product.id);
+      addEvent('ProductActivatedEvent', {
+        productId: product.id,
+        merchantId: product.merchantId,
+        categoryId: product.categoryId,
+      });
+      addEvent(
+        'ProductActivatedEvent',
+        { message: `Inventory initialization ready for product ${product.id}` },
+        'InventoryListener',
+      );
+      await fetchProducts();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Error al activar');
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const handleDeactivate = async (product: Product) => {
+    setTogglingId(product.id);
+    try {
+      await deactivateProduct(product.id);
+      await fetchProducts();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Error al desactivar');
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const handleWizardComplete = async () => {
+    setShowWizard(false);
+    await fetchProducts();
+  };
+
+  if (!isAdmin && !isMerchant) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <span className="text-5xl mb-4">🔒</span>
+        <p className="text-gray-700 font-semibold">Acceso restringido</p>
+        <p className="text-sm text-gray-400 mt-1">
+          Solo administradores y merchants pueden acceder al inventario
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Inventario</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Gestioná todos tus productos: activá, desactivá o creá nuevos
+          </p>
+        </div>
+        {!showWizard && (
+          <button
+            onClick={() => setShowWizard(true)}
+            className="bg-[#c1292e] hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
+          >
+            + Nuevo Producto
+          </button>
+        )}
+      </div>
+
+      {/* Wizard */}
+      {showWizard && (
+        <ProductWizard
+          onComplete={handleWizardComplete}
+          onCancel={() => setShowWizard(false)}
+          onEvent={addEvent}
+        />
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Products table (2/3) */}
+        <div className="lg:col-span-2">
+          {loadingList && (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-6 h-6 border-2 border-[#c1292e] border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+
+          {listError && (
+            <div className="text-sm text-[#c1292e] bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+              {listError}
+            </div>
+          )}
+
+          {!loadingList && products.length === 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl flex flex-col items-center justify-center py-16 text-center">
+              <span className="text-4xl mb-3">📦</span>
+              <p className="text-gray-500">No hay productos todavía</p>
+              <p className="text-sm text-gray-400 mt-1">Creá uno con el botón "Nuevo Producto"</p>
+            </div>
+          )}
+
+          {!loadingList && products.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Producto</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoría</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {products.map((p) => (
+                    <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-mono text-gray-400 text-xs">{p.id}</td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-gray-900">{p.title || <span className="text-gray-400 italic text-xs">Sin título</span>}</p>
+                        {p.code && <p className="text-xs text-gray-400 font-mono">{p.code}</p>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {CATEGORY_NAMES[p.categoryId] ?? `Cat. ${p.categoryId}`}
+                      </td>
+                      <td className="px-4 py-3">
+                        {p.isActive ? (
+                          <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                            Activo
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-xs font-medium">
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full" />
+                            Inactivo
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {togglingId === p.id ? (
+                          <span className="inline-block w-4 h-4 border-2 border-[#c1292e] border-t-transparent rounded-full animate-spin" />
+                        ) : p.isActive ? (
+                          <button
+                            onClick={() => handleDeactivate(p)}
+                            className="text-xs border border-gray-300 hover:border-gray-400 text-gray-600 hover:text-gray-800 px-3 py-1 rounded-lg transition-colors"
+                          >
+                            Desactivar
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleActivate(p)}
+                            disabled={!p.title || !p.code}
+                            className="text-xs bg-[#c1292e] hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-1 rounded-lg transition-colors"
+                            title={!p.title || !p.code ? 'Agregá detalles antes de activar' : ''}
+                          >
+                            Activar ⚡
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Event Log (1/3) */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col h-fit">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="w-2 h-2 bg-[#c1292e] rounded-full animate-pulse" />
+            <h3 className="text-sm font-semibold text-gray-800">Event Log</h3>
+          </div>
+
+          {events.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-8">
+              Los eventos aparecerán aquí al activar un producto
+            </p>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {events.map((ev) => (
+                <div key={ev.id} className="border border-gray-100 rounded-lg p-3 text-xs">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`font-bold ${ev.listener ? 'text-green-700' : 'text-orange-600'}`}>
+                      {ev.listener ? `📥 ${ev.listener}` : `⚡ ${ev.name}`}
+                    </span>
+                    <span className="text-gray-400">{ev.timestamp}</span>
+                  </div>
+                  {ev.listener && (
+                    <p className="text-gray-400 mb-1 text-xs">handles: {ev.name}</p>
+                  )}
+                  <pre className="bg-gray-50 rounded p-2 text-gray-700 overflow-x-auto whitespace-pre-wrap break-all">
+                    {JSON.stringify(ev.payload, null, 2)}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ───────────────────────────────────────────
+   Product creation wizard (inline)
+─────────────────────────────────────────── */
+function ProductWizard({
+  onComplete,
+  onCancel,
+  onEvent,
+}: {
+  onComplete: () => void;
+  onCancel: () => void;
+  onEvent: (name: string, payload: Record<string, unknown>, listener?: string) => void;
+}) {
+  const [step, setStep] = useState<WizardStep>(1);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Step 1
+  const [categoryId, setCategoryId] = useState('1');
+
+  // Step 2
+  const [title, setTitle] = useState('Laptop Demo');
+  const [code, setCode] = useState(`LAPTOP-${Date.now().toString().slice(-4)}`);
+  const [brand, setBrand] = useState('Dell');
+  const [series, setSeries] = useState('XPS');
+  const [capacity, setCapacity] = useState('512');
+  const [capacityUnit, setCapacityUnit] = useState<'GB' | 'TB'>('GB');
+  const [capacityType, setCapacityType] = useState<'SSD' | 'HD'>('SSD');
+  const [description, setDescription] = useState('Laptop de alta performance.');
+  const [about, setAbout] = useState('Alta performance\nPantalla Full HD\nBatería larga duración');
+
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const created = await createProduct({ categoryId: parseInt(categoryId) });
+      setProduct(created);
+      setStep(2);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al crear');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!product) return;
+    setError('');
+    setLoading(true);
+    try {
+      await addProductDetails(product.id, {
+        title,
+        code,
+        variationType: 'NONE',
+        details: {
+          category: 'Computers',
+          capacity: parseInt(capacity),
+          capacityUnit,
+          capacityType,
+          brand,
+          series,
+        },
+        about: about.split('\n').filter((l) => l.trim()),
+        description,
+      });
+      const refreshed = await getProduct(product.id);
+      setProduct(refreshed);
+      setStep(3);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al guardar detalles');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleActivate = async () => {
+    if (!product) return;
+    setError('');
+    setLoading(true);
+    try {
+      await activateProduct(product.id);
+      onEvent('ProductActivatedEvent', {
+        productId: product.id,
+        merchantId: product.merchantId,
+        categoryId: product.categoryId,
+      });
+      onEvent(
+        'ProductActivatedEvent',
+        { message: `Inventory initialization ready for product ${product.id}` },
+        'InventoryListener',
+      );
+      setStep(4);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al activar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white border-2 border-[#c1292e]/20 rounded-xl p-6">
+      {/* Wizard header */}
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="font-semibold text-gray-900">Nuevo Producto</h2>
+        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+      </div>
+
+      {/* Step indicator */}
+      <div className="flex items-center gap-1 mb-6">
+        {[1, 2, 3, 4].map((n, i) => (
+          <div key={n} className="flex items-center flex-1">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+              n < step ? 'bg-green-500 text-white' : n === step ? 'bg-[#c1292e] text-white' : 'bg-gray-200 text-gray-500'
+            }`}>
+              {n < step ? '✓' : n}
+            </div>
+            {i < 3 && <div className={`h-0.5 flex-1 mx-1 ${n < step ? 'bg-green-400' : 'bg-gray-200'}`} />}
+          </div>
+        ))}
+      </div>
+
+      {error && (
+        <div className="mb-4 text-sm text-[#c1292e] bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          {error}
+        </div>
+      )}
+
+      {/* Step 1 */}
+      {step === 1 && (
+        <form onSubmit={handleCreateProduct} className="space-y-4">
+          <p className="text-sm text-gray-500">Seleccioná una categoría para el nuevo producto.</p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]"
+            >
+              <option value="1">Computadoras (ID: 1)</option>
+              <option value="2">Moda (ID: 2)</option>
+            </select>
+          </div>
+          <button type="submit" disabled={loading}
+            className="w-full bg-[#c1292e] hover:bg-red-700 disabled:opacity-60 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">
+            {loading ? 'Creando...' : 'Crear →'}
+          </button>
+        </form>
+      )}
+
+      {/* Step 2 */}
+      {step === 2 && (
+        <form onSubmit={handleAddDetails} className="space-y-3">
+          <p className="text-sm text-gray-500">Producto <span className="font-mono font-bold">#{product?.id}</span> creado. Agregá los detalles.</p>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: 'Título', value: title, set: setTitle },
+              { label: 'Código', value: code, set: setCode },
+              { label: 'Marca', value: brand, set: setBrand },
+              { label: 'Serie', value: series, set: setSeries },
+            ].map(({ label, value, set }) => (
+              <div key={label}>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                <input value={value} onChange={(e) => set(e.target.value)} required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]" />
+              </div>
+            ))}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Capacidad</label>
+              <input type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Unidad / Tipo</label>
+              <div className="flex gap-2">
+                <select value={capacityUnit} onChange={(e) => setCapacityUnit(e.target.value as 'GB' | 'TB')}
+                  className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]">
+                  <option>GB</option><option>TB</option>
+                </select>
+                <select value={capacityType} onChange={(e) => setCapacityType(e.target.value as 'SSD' | 'HD')}
+                  className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]">
+                  <option>SSD</option><option>HD</option>
+                </select>
+              </div>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e] resize-none" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Características (una por línea)</label>
+              <textarea value={about} onChange={(e) => setAbout(e.target.value)} rows={2} required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e] resize-none" />
+            </div>
+          </div>
+          <button type="submit" disabled={loading}
+            className="w-full bg-[#c1292e] hover:bg-red-700 disabled:opacity-60 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">
+            {loading ? 'Guardando...' : 'Guardar Detalles →'}
+          </button>
+        </form>
+      )}
+
+      {/* Step 3 */}
+      {step === 3 && (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            El producto está listo. Al activar se dispara <code className="bg-gray-100 px-1 rounded text-xs">ProductActivatedEvent</code>.
+          </p>
+          <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+            <div className="flex justify-between"><span className="text-gray-500">ID:</span><span className="font-mono">{product?.id}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Título:</span><span>{product?.title}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Código:</span><span className="font-mono">{product?.code}</span></div>
+          </div>
+          <button onClick={handleActivate} disabled={loading}
+            className="w-full bg-[#c1292e] hover:bg-red-700 disabled:opacity-60 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+            {loading ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Activando...</> : '⚡ Activar Producto'}
+          </button>
+        </div>
+      )}
+
+      {/* Step 4 */}
+      {step === 4 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+            <span className="text-2xl">✅</span>
+            <div>
+              <p className="font-semibold text-green-800">¡Producto activado!</p>
+              <p className="text-sm text-green-600">ProductActivatedEvent disparado → InventoryListener ejecutado</p>
+            </div>
+          </div>
+          <button onClick={onComplete}
+            className="w-full bg-[#c1292e] hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">
+            Ver en inventario →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

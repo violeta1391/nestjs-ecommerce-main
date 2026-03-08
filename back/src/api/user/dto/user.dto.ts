@@ -1,5 +1,5 @@
-import { Expose } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import { Expose, Transform } from 'class-transformer';
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class CreateUserDto {
   @IsEmail()
@@ -8,6 +8,7 @@ export class CreateUserDto {
 
   @IsString()
   @IsNotEmpty()
+  @MinLength(8)
   public password: string;
 }
 
@@ -17,4 +18,10 @@ export class UserDto {
 
   @Expose()
   public email: string;
+
+  @Expose()
+  @Transform(({ obj }) =>
+    (obj.roles ?? []).map((r: { id: number }) => r.id),
+  )
+  public roleIds: number[];
 }

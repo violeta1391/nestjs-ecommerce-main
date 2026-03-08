@@ -67,7 +67,20 @@ export async function activateProduct(productId: number): Promise<ActivateProduc
   return res.data;
 }
 
+export async function listProducts(): Promise<Product[]> {
+  const res = await apiRequest<Product[]>('/product');
+  return res.data;
+}
+
 export async function getProduct(productId: number): Promise<Product> {
   const res = await apiRequest<Product>(`/product/${productId}`);
+  return res.data;
+}
+
+export async function deactivateProduct(productId: number): Promise<ActivateProductResult> {
+  const res = await apiRequest<ActivateProductResult>(
+    `/product/${productId}/deactivate`,
+    { method: 'POST' },
+  );
   return res.data;
 }

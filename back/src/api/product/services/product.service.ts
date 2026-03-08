@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { DeleteResult, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ProductActivatedEvent } from 'src/events/domain/product-activated.event';
@@ -22,11 +22,30 @@ export class ProductService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
+  async listProducts(
+    userId: number,
+    isAdmin: boolean,
+    isMerchant: boolean,
+  ): Promise<Product[]> {
+    if (isAdmin) {
+      return this.entityManager.find(Product, { order: { createdAt: 'DESC' } });
+    }
+    if (isMerchant) {
+      return this.entityManager.find(Product, {
+        where: { merchantId: userId },
+        order: { createdAt: 'DESC' },
+      });
+    }
+    // Customer: only active products
+    return this.entityManager.find(Product, {
+      where: { isActive: true },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   async getProduct(productId: number) {
     const product = await this.entityManager.findOne(Product, {
-      where: {
-        id: productId,
-      },
+      where: { id: productId },
     });
 
     if (!product) throw new NotFoundException(errorMessages.product.notFound);
@@ -36,9 +55,7 @@ export class ProductService {
 
   async createProduct(data: CreateProductDto, merchantId: number) {
     const category = await this.entityManager.findOne(Category, {
-      where: {
-        id: data.categoryId,
-      },
+      where: { id: data.categoryId },
     });
 
     if (!category) throw new NotFoundException(errorMessages.category.notFound);
@@ -59,34 +76,39 @@ export class ProductService {
     const result = await this.entityManager
       .createQueryBuilder()
       .update<Product>(Product)
-      .set({
-        ...body,
-      })
+      .set({ ...body })
       .where('id = :id', { id: productId })
       .andWhere('merchantId = :merchantId', { merchantId })
       .returning(['id'])
       .execute();
+
     if (result.affected < 1)
       throw new NotFoundException(errorMessages.product.notFound);
+
     return result.raw[0];
   }
 
-  async activateProduct(productId: number, merchantId: number) {
+  async activateProduct(
+    productId: number,
+    merchantId: number,
+    isAdmin = false,
+  ) {
     if (!(await this.validate(productId)))
       throw new ConflictException(errorMessages.product.notFulfilled);
 
     const product = await this.getProduct(productId);
 
-    const result = await this.entityManager
+    const query = this.entityManager
       .createQueryBuilder()
       .update<Product>(Product)
-      .set({
-        isActive: true,
-      })
-      .where('id = :id', { id: productId })
-      .andWhere('merchantId = :merchantId', { merchantId })
-      .returning(['id', 'isActive'])
-      .execute();
+      .set({ isActive: true })
+      .where('id = :id', { id: productId });
+
+    if (!isAdmin) {
+      query.andWhere('merchantId = :merchantId', { merchantId });
+    }
+
+    const result = await query.returning(['id', 'isActive']).execute();
 
     this.eventEmitter.emit(
       ProductActivatedEvent.EVENT_NAME,
@@ -96,17 +118,36 @@ export class ProductService {
     return result.raw[0];
   }
 
+  async deactivateProduct(
+    productId: number,
+    merchantId: number,
+    isAdmin = false,
+  ): Promise<{ id: number; isActive: boolean }> {
+    const query = this.entityManager
+      .createQueryBuilder()
+      .update<Product>(Product)
+      .set({ isActive: false })
+      .where('id = :id', { id: productId });
+
+    if (!isAdmin) {
+      query.andWhere('merchantId = :merchantId', { merchantId });
+    }
+
+    const result = await query.returning(['id', 'isActive']).execute();
+
+    if (result.affected < 1)
+      throw new NotFoundException(errorMessages.product.notFound);
+
+    return result.raw[0];
+  }
+
   async validate(productId: number) {
     const product = await this.entityManager.findOne(Product, {
-      where: {
-        id: productId,
-      },
+      where: { id: productId },
     });
     if (!product) throw new NotFoundException(errorMessages.product.notFound);
     const errors = await validate(product);
-
     if (errors.length > 0) return false;
-
     return true;
   }
 

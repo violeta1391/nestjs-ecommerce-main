@@ -7,12 +7,14 @@ import React, {
   useState,
   useCallback,
 } from 'react';
-import { login as apiLogin, getProfile, UserProfile } from '@/lib/api/auth';
+import { login as apiLogin, getProfile, UserProfile, ROLE_IDS } from '@/lib/api/auth';
 
 interface AuthContextType {
   user: UserProfile | null;
   token: string | null;
   isLoading: boolean;
+  isAdmin: boolean;
+  isMerchant: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -54,8 +56,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(profile);
   };
 
+  const isAdmin = user?.roleIds?.includes(ROLE_IDS.Admin) ?? false;
+  const isMerchant = user?.roleIds?.includes(ROLE_IDS.Merchant) ?? false;
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, isAdmin, isMerchant, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

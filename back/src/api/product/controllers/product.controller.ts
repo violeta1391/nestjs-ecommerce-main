@@ -11,6 +11,14 @@ import { User } from 'src/database/entities/user.entity';
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
+  @Auth()
+  @Get()
+  async listProducts(@CurrentUser() user: User) {
+    const isAdmin = user.roles?.some((r) => r.id === RoleIds.Admin);
+    const isMerchant = user.roles?.some((r) => r.id === RoleIds.Merchant);
+    return this.productService.listProducts(user.id, isAdmin, isMerchant);
+  }
+
   @Get(':id')
   async getProduct(@Param() product: FindOneParams) {
     return this.productService.getProduct(product.id);
@@ -41,7 +49,18 @@ export class ProductController {
     @Param() product: FindOneParams,
     @CurrentUser() user: User,
   ) {
-    return this.productService.activateProduct(product.id, user.id);
+    const isAdmin = user.roles?.some((r) => r.id === RoleIds.Admin);
+    return this.productService.activateProduct(product.id, user.id, isAdmin);
+  }
+
+  @Auth(RoleIds.Admin, RoleIds.Merchant)
+  @Post(':id/deactivate')
+  async deactivateProduct(
+    @Param() product: FindOneParams,
+    @CurrentUser() user: User,
+  ) {
+    const isAdmin = user.roles?.some((r) => r.id === RoleIds.Admin);
+    return this.productService.deactivateProduct(product.id, user.id, isAdmin);
   }
 
   @Auth(RoleIds.Admin, RoleIds.Merchant)

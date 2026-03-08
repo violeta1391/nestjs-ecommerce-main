@@ -11,7 +11,11 @@ export interface RegisterResponse {
 export interface UserProfile {
   id: number;
   email: string;
+  roleIds: number[];
 }
+
+// Role IDs matching the backend enum
+export const ROLE_IDS = { Customer: 1, Merchant: 2, Admin: 3 } as const;
 
 export async function login(email: string, password: string): Promise<string> {
   const res = await apiRequest<LoginResponse>('/auth/login', {
