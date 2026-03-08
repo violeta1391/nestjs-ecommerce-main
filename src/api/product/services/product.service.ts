@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { DeleteResult, EntityManager } from 'typeorm';
 import { InjectEntityManager } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ProductActivatedEvent } from 'src/events/domain/product-activated.event';
 import { CreateProductDto, ProductDetailsDto } from '../dto/product.dto';
 import { Category } from '../../../database/entities/category.entity';
 import { Product } from 'src/database/entities/product.entity';
@@ -17,6 +19,7 @@ export class ProductService {
   constructor(
     @InjectEntityManager()
     private readonly entityManager: EntityManager,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async getProduct(productId: number) {
@@ -72,6 +75,8 @@ export class ProductService {
     if (!(await this.validate(productId)))
       throw new ConflictException(errorMessages.product.notFulfilled);
 
+    const product = await this.getProduct(productId);
+
     const result = await this.entityManager
       .createQueryBuilder()
       .update<Product>(Product)
@@ -82,6 +87,11 @@ export class ProductService {
       .andWhere('merchantId = :merchantId', { merchantId })
       .returning(['id', 'isActive'])
       .execute();
+
+    this.eventEmitter.emit(
+      ProductActivatedEvent.EVENT_NAME,
+      new ProductActivatedEvent(productId, merchantId, product.categoryId),
+    );
 
     return result.raw[0];
   }

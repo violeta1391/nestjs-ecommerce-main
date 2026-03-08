@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { UserRegisteredEvent } from 'src/events/domain/user-registered.event';
 import { RoleIds } from 'src/api/role/enum/role.enum';
 import { RoleService } from 'src/api/role/services/role.service';
 import { CreateUserDto } from 'src/api/user/dto/user.dto';
@@ -19,6 +21,7 @@ export class AuthService {
     private readonly roleService: RoleService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   async login(user: CreateUserDto) {
@@ -46,7 +49,12 @@ export class AuthService {
 
     const customerRole = await this.roleService.findById(RoleIds.Customer);
 
-    await this.userService.createUser(user, customerRole);
+    const newUser = await this.userService.createUser(user, customerRole);
+
+    this.eventEmitter.emit(
+      UserRegisteredEvent.EVENT_NAME,
+      new UserRegisteredEvent(newUser.id, newUser.email),
+    );
 
     return {
       message: 'success',

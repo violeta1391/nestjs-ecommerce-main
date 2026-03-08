@@ -20,7 +20,7 @@ import { UserService } from '../user/services/user.service';
     RoleModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, UserService],
+  providers: [AuthService],
   exports: [],
 })
 export class AuthModule {}
