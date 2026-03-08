@@ -1,21 +1,102 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { listProducts, Product } from '@/lib/api/products';
+import { useProductsContext } from '@/lib/context/ProductsContext';
 
 const CATEGORY_NAMES: Record<number, string> = { 1: 'Computadoras', 2: 'Moda' };
+const LIMIT = 6;
 
 export default function DashboardPage() {
+  const { refreshKey } = useProductsContext();
+
   const [products, setProducts] = useState<Product[]>([]);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    listProducts()
-      .then((all) => setProducts(all.filter((p) => p.isActive)))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const currentPageRef = useRef(0);
+  const isFetchingRef = useRef(false);
+  const hasMoreRef = useRef(true);
+  // fetchId: invalida respuestas de fetches anteriores cuando se reinicia
+  const fetchIdRef = useRef(0);
+
+  const fetchNextPage = useCallback(async () => {
+    if (isFetchingRef.current || !hasMoreRef.current) return;
+
+    isFetchingRef.current = true;
+    const nextPage = currentPageRef.current + 1;
+    const myFetchId = ++fetchIdRef.current; // ID único para esta llamada
+
+    if (nextPage === 1) setLoading(true);
+    else setLoadingMore(true);
+
+    try {
+      const data = await listProducts(nextPage, LIMIT, true);
+
+      // Si se reinició (nuevo refreshKey) mientras estábamos esperando, descartar
+      if (myFetchId !== fetchIdRef.current) return;
+
+      // Filtro defensivo: garantiza que NUNCA aparezca un producto inactivo
+      // en el Dashboard independientemente del rol (Admin, Merchant o Customer)
+      const activeItems = data.items.filter((p) => p.isActive);
+      setProducts((prev) => (nextPage === 1 ? activeItems : [...prev, ...activeItems]));
+      currentPageRef.current = data.page;
+      const more = data.page < data.totalPages;
+      hasMoreRef.current = more;
+      setHasMore(more);
+    } catch (e: unknown) {
+      if (myFetchId !== fetchIdRef.current) return;
+      setError(e instanceof Error ? e.message : 'Error al cargar productos');
+    } finally {
+      if (myFetchId === fetchIdRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+        isFetchingRef.current = false;
+      }
+    }
   }, []);
+
+  /*
+   * Efecto principal: se dispara en el mount inicial Y cada vez que Inventario
+   * llama triggerRefresh() (ej.: activar, desactivar, crear, eliminar).
+   * Reinicia todo el estado paginado y arranca desde página 1.
+   */
+  useEffect(() => {
+    currentPageRef.current = 0;
+    hasMoreRef.current = true;
+    isFetchingRef.current = false;
+    fetchIdRef.current++; // Invalida fetches en vuelo
+    setProducts([]);
+    setHasMore(true);
+    setError('');
+    fetchNextPage();
+  }, [refreshKey, fetchNextPage]);
+
+  // Post-carga: si el sentinel sigue visible tras cargar una página, continuar cargando
+  useEffect(() => {
+    if (loading || loadingMore || !hasMore) return;
+    const id = requestAnimationFrame(() => {
+      if (!sentinelRef.current || !hasMoreRef.current || isFetchingRef.current) return;
+      const { top } = sentinelRef.current.getBoundingClientRect();
+      if (top < window.innerHeight + 300) fetchNextPage();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [loading, loadingMore, hasMore, fetchNextPage]);
+
+  // IntersectionObserver: dispara al hacer scroll hasta el sentinel
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) fetchNextPage(); },
+      { rootMargin: '200px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [fetchNextPage]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -55,11 +136,25 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
+
+      {/* Sentinel siempre en el DOM */}
+      <div ref={sentinelRef} className="flex justify-center py-6 min-h-[1px]">
+        {loadingMore && (
+          <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="w-4 h-4 border-2 border-[#c1292e] border-t-transparent rounded-full animate-spin" />
+            Cargando más...
+          </div>
+        )}
+        {!loading && !loadingMore && !hasMore && products.length > 0 && (
+          <p className="text-xs text-gray-400">— Todos los productos cargados —</p>
+        )}
+      </div>
     </div>
   );
 }
 
-function ProductCard({ product }: { product: Product }) {
+/* ─── ProductCard con React.memo: sólo re-renderiza si el producto cambia ─── */
+const ProductCard = React.memo(function ProductCard({ product }: { product: Product }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">
@@ -89,4 +184,4 @@ function ProductCard({ product }: { product: Product }) {
       )}
     </div>
   );
-}
+});

@@ -15,6 +15,14 @@ export interface Product {
   updatedAt: string;
 }
 
+export interface PaginatedProducts {
+  items: Product[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface CreateProductPayload {
   categoryId: number;
 }
@@ -67,8 +75,9 @@ export async function activateProduct(productId: number): Promise<ActivateProduc
   return res.data;
 }
 
-export async function listProducts(): Promise<Product[]> {
-  const res = await apiRequest<Product[]>('/product');
+export async function listProducts(page = 1, limit = 10, activeOnly = false): Promise<PaginatedProducts> {
+  const url = `/product?page=${page}&limit=${limit}${activeOnly ? '&activeOnly=true' : ''}`;
+  const res = await apiRequest<PaginatedProducts>(url);
   return res.data;
 }
 
@@ -83,4 +92,10 @@ export async function deactivateProduct(productId: number): Promise<ActivateProd
     { method: 'POST' },
   );
   return res.data;
+}
+
+export async function deleteProduct(productId: number): Promise<void> {
+  await apiRequest<{ message: string }>(`/product/${productId}`, {
+    method: 'DELETE',
+  });
 }

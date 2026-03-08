@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { RoleIds } from '../../role/enum/role.enum';
-import { CreateProductDto, ProductDetailsDto } from '../dto/product.dto';
+import { CreateProductDto, PaginationQueryDto, ProductDetailsDto } from '../dto/product.dto';
 import { ProductService } from '../services/product.service';
 import { Auth } from 'src/api/auth/guards/auth.decorator';
 import { FindOneParams } from 'src/common/helper/findOneParams.dto';
@@ -13,10 +13,20 @@ export class ProductController {
 
   @Auth()
   @Get()
-  async listProducts(@CurrentUser() user: User) {
+  async listProducts(
+    @CurrentUser() user: User,
+    @Query() query: PaginationQueryDto,
+  ) {
     const isAdmin = user.roles?.some((r) => r.id === RoleIds.Admin);
     const isMerchant = user.roles?.some((r) => r.id === RoleIds.Merchant);
-    return this.productService.listProducts(user.id, isAdmin, isMerchant);
+    return this.productService.listProducts(
+      user.id,
+      isAdmin,
+      isMerchant,
+      query.page ?? 1,
+      query.limit ?? 10,
+      query.activeOnly ?? false,
+    );
   }
 
   @Get(':id')
@@ -69,6 +79,7 @@ export class ProductController {
     @Param() product: FindOneParams,
     @CurrentUser() user: User,
   ) {
-    return this.productService.deleteProduct(product.id, user.id);
+    const isAdmin = user.roles?.some((r) => r.id === RoleIds.Admin);
+    return this.productService.deleteProduct(product.id, user.id, isAdmin);
   }
 }

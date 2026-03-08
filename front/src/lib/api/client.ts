@@ -22,6 +22,7 @@ export async function apiRequest<T>(
   };
 
   const response = await fetch(`${API_URL}${endpoint}`, {
+    cache: 'no-store', // evita que el browser cachee respuestas GET
     ...options,
     headers,
   });

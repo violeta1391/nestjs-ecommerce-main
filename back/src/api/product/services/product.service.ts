@@ -14,6 +14,14 @@ import { errorMessages } from 'src/errors/custom';
 import { validate } from 'class-validator';
 import { successObject } from 'src/common/helper/sucess-response.interceptor';
 
+export interface PaginatedProducts {
+  items: Product[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 @Injectable()
 export class ProductService {
   constructor(
@@ -26,30 +34,53 @@ export class ProductService {
     userId: number,
     isAdmin: boolean,
     isMerchant: boolean,
-  ): Promise<Product[]> {
-    if (isAdmin) {
-      return this.entityManager.find(Product, { order: { createdAt: 'DESC' } });
-    }
-    if (isMerchant) {
-      return this.entityManager.find(Product, {
+    page = 1,
+    limit = 10,
+    activeOnly = false,
+  ): Promise<PaginatedProducts> {
+    const skip = (page - 1) * limit;
+    const order = { createdAt: 'DESC' as const };
+    let items: Product[];
+    let total: number;
+
+    // activeOnly=true → always filter active only, regardless of role (used by dashboard)
+    if (activeOnly) {
+      [items, total] = await this.entityManager.findAndCount(Product, {
+        where: { isActive: true },
+        order,
+        skip,
+        take: limit,
+      });
+    } else if (isAdmin) {
+      [items, total] = await this.entityManager.findAndCount(Product, {
+        order,
+        skip,
+        take: limit,
+      });
+    } else if (isMerchant) {
+      [items, total] = await this.entityManager.findAndCount(Product, {
         where: { merchantId: userId },
-        order: { createdAt: 'DESC' },
+        order,
+        skip,
+        take: limit,
+      });
+    } else {
+      [items, total] = await this.entityManager.findAndCount(Product, {
+        where: { isActive: true },
+        order,
+        skip,
+        take: limit,
       });
     }
-    // Customer: only active products
-    return this.entityManager.find(Product, {
-      where: { isActive: true },
-      order: { createdAt: 'DESC' },
-    });
+
+    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async getProduct(productId: number) {
     const product = await this.entityManager.findOne(Product, {
       where: { id: productId },
     });
-
     if (!product) throw new NotFoundException(errorMessages.product.notFound);
-
     return product;
   }
 
@@ -57,14 +88,12 @@ export class ProductService {
     const category = await this.entityManager.findOne(Category, {
       where: { id: data.categoryId },
     });
-
     if (!category) throw new NotFoundException(errorMessages.category.notFound);
 
     const product = await this.entityManager.create(Product, {
       category,
       merchantId,
     });
-
     return this.entityManager.save(product);
   }
 
@@ -84,7 +113,6 @@ export class ProductService {
 
     if (result.affected < 1)
       throw new NotFoundException(errorMessages.product.notFound);
-
     return result.raw[0];
   }
 
@@ -104,9 +132,7 @@ export class ProductService {
       .set({ isActive: true })
       .where('id = :id', { id: productId });
 
-    if (!isAdmin) {
-      query.andWhere('merchantId = :merchantId', { merchantId });
-    }
+    if (!isAdmin) query.andWhere('merchantId = :merchantId', { merchantId });
 
     const result = await query.returning(['id', 'isActive']).execute();
 
@@ -129,15 +155,11 @@ export class ProductService {
       .set({ isActive: false })
       .where('id = :id', { id: productId });
 
-    if (!isAdmin) {
-      query.andWhere('merchantId = :merchantId', { merchantId });
-    }
+    if (!isAdmin) query.andWhere('merchantId = :merchantId', { merchantId });
 
     const result = await query.returning(['id', 'isActive']).execute();
-
     if (result.affected < 1)
       throw new NotFoundException(errorMessages.product.notFound);
-
     return result.raw[0];
   }
 
@@ -147,22 +169,25 @@ export class ProductService {
     });
     if (!product) throw new NotFoundException(errorMessages.product.notFound);
     const errors = await validate(product);
-    if (errors.length > 0) return false;
-    return true;
+    return errors.length === 0;
   }
 
-  async deleteProduct(productId: number, merchantId: number) {
-    const result = await this.entityManager
+  async deleteProduct(
+    productId: number,
+    merchantId: number,
+    isAdmin = false,
+  ) {
+    const query = this.entityManager
       .createQueryBuilder()
       .delete()
       .from(Product)
-      .where('id = :productId', { productId })
-      .andWhere('merchantId = :merchantId', { merchantId })
-      .execute();
+      .where('id = :productId', { productId });
 
+    if (!isAdmin) query.andWhere('merchantId = :merchantId', { merchantId });
+
+    const result = await query.execute();
     if (result.affected < 1)
       throw new NotFoundException(errorMessages.product.notFound);
-
     return successObject;
   }
 }
