@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
+import { UserModule } from 'src/api/user/user.module';
 import { ProductActivatedListener } from './listeners/product-activated.listener';
+import { InventoryService } from './inventory.service';
+import { InventoryController } from './controllers/inventory.controller';
 
-// TypeOrmModule.forFeature ya no es necesario: el listener usa EntityManager
-// (provisto globalmente por TypeOrmModule.forRootAsync), no Repository<Inventory>.
 @Module({
-  providers: [ProductActivatedListener],
+  imports: [UserModule],
+  controllers: [InventoryController],
+  providers: [ProductActivatedListener, InventoryService],
 })
 export class InventoryModule {}

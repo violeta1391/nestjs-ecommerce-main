@@ -13,6 +13,7 @@ import {
   getProduct,
   Product,
 } from '@/lib/api/products';
+import { getProductInventory } from '@/lib/api/inventory';
 
 const CATEGORY_NAMES: Record<number, string> = { 1: 'Computadoras', 2: 'Moda' };
 const PAGE_SIZE = 10;
@@ -31,6 +32,9 @@ export default function InventoryPage() {
   const [listError, setListError] = useState('');
   const [showWizard, setShowWizard] = useState(false);
 
+  // Stock map: productId → total quantity (null = cargando)
+  const [stockMap, setStockMap] = useState<Map<number, number | null>>(new Map());
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -44,6 +48,9 @@ export default function InventoryPage() {
   const currentPageRef = useRef(1);
   const totalRef = useRef(0);
   const totalPagesRef = useRef(1);
+  // Ref sincronizado en cada render: permite leer products.length en callbacks sin agregarlo como dep
+  const productsLengthRef = useRef(0);
+  productsLengthRef.current = products.length;
 
   /* ── fetchProducts ──────────────────────────────────────────── */
   const fetchProducts = useCallback(async (page: number) => {
@@ -59,6 +66,21 @@ export default function InventoryPage() {
       currentPageRef.current = data.page;
       totalRef.current = data.total;
       totalPagesRef.current = data.totalPages;
+
+      // Marcar todos como "cargando stock" y luego resolverlos en paralelo.
+      // El fetch de stock es no-bloqueante: la tabla se muestra inmediatamente
+      // y la columna Stock se actualiza cuando llegan las respuestas del evento.
+      const ids = data.items.map((p) => p.id);
+      setStockMap(new Map(ids.map((id) => [id, null])));
+      Promise.all(
+        ids.map((id) =>
+          getProductInventory(id)
+            .then((records) => ({ id, qty: records.reduce((s, r) => s + r.quantity, 0) }))
+            .catch(() => ({ id, qty: 0 })),
+        ),
+      ).then((results) => {
+        setStockMap(new Map(results.map((r) => [r.id, r.qty])));
+      });
     } catch (e: unknown) {
       setListError(e instanceof Error ? e.message : 'Error al cargar productos');
     } finally {
@@ -75,8 +97,18 @@ export default function InventoryPage() {
     async (product: Product) => {
       setTogglingId(product.id);
       try {
-        await activateProduct(product.id);
-        await fetchProducts(currentPageRef.current);
+        const result = await activateProduct(product.id);
+        // Actualiza solo el producto afectado en el estado local, sin re-fetch de toda la tabla
+        setProducts((prev) =>
+          prev.map((p) => (p.id === result.id ? { ...p, isActive: result.isActive } : p)),
+        );
+        // Actualiza el stock de este producto: la activación crea el registro de inventario
+        getProductInventory(product.id)
+          .then((records) => {
+            const qty = records.reduce((s, r) => s + r.quantity, 0);
+            setStockMap((prev) => new Map(prev).set(product.id, qty));
+          })
+          .catch(() => {});
         triggerRefresh();
       } catch (e: unknown) {
         alert(e instanceof Error ? e.message : 'Error al activar');
@@ -84,7 +116,7 @@ export default function InventoryPage() {
         setTogglingId(null);
       }
     },
-    [fetchProducts, triggerRefresh],
+    [triggerRefresh],
   );
 
   /* ── handleDeactivate ───────────────────────────────────────── */
@@ -92,8 +124,11 @@ export default function InventoryPage() {
     async (product: Product) => {
       setTogglingId(product.id);
       try {
-        await deactivateProduct(product.id);
-        await fetchProducts(currentPageRef.current);
+        const result = await deactivateProduct(product.id);
+        // Actualiza solo el producto afectado en el estado local, sin re-fetch de toda la tabla
+        setProducts((prev) =>
+          prev.map((p) => (p.id === result.id ? { ...p, isActive: result.isActive } : p)),
+        );
         triggerRefresh();
       } catch (e: unknown) {
         alert(e instanceof Error ? e.message : 'Error al desactivar');
@@ -101,7 +136,7 @@ export default function InventoryPage() {
         setTogglingId(null);
       }
     },
-    [fetchProducts, triggerRefresh],
+    [triggerRefresh],
   );
 
   /* ── handleDelete ───────────────────────────────────────────── */
@@ -113,11 +148,23 @@ export default function InventoryPage() {
       setDeletingId(product.id);
       try {
         await deleteProduct(product.id);
-        // Si era el último ítem de una página > 1, retroceder una página
+
         const newTotal = totalRef.current - 1;
         const newTotalPages = Math.max(1, Math.ceil(newTotal / PAGE_SIZE));
-        const targetPage = Math.min(currentPageRef.current, newTotalPages);
-        await fetchProducts(targetPage);
+
+        if (productsLengthRef.current === 1 && currentPageRef.current > 1) {
+          // Caso edge: era el único ítem de una página > 1 → fetch de la página anterior
+          await fetchProducts(currentPageRef.current - 1);
+        } else {
+          // Caso normal: quedan ítems en la página → actualización local sin re-fetch
+          setProducts((prev) => prev.filter((p) => p.id !== product.id));
+          setStockMap((prev) => { const next = new Map(prev); next.delete(product.id); return next; });
+          setTotal(newTotal);
+          setTotalPages(newTotalPages);
+          totalRef.current = newTotal;
+          totalPagesRef.current = newTotalPages;
+        }
+
         triggerRefresh();
       } catch (e: unknown) {
         alert(e instanceof Error ? e.message : 'Error al eliminar');
@@ -218,6 +265,7 @@ export default function InventoryPage() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Producto</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Categoría</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Stock</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Acciones</th>
                   </tr>
                 </thead>
@@ -226,6 +274,7 @@ export default function InventoryPage() {
                     <ProductRow
                       key={p.id}
                       product={p}
+                      stock={stockMap.has(p.id) ? stockMap.get(p.id)! : null}
                       onActivate={handleActivate}
                       onDeactivate={handleDeactivate}
                       onDelete={handleDelete}
@@ -290,6 +339,8 @@ export default function InventoryPage() {
 ════════════════════════════════════════════════════════════════ */
 interface ProductRowProps {
   product: Product;
+  /** null = cargando, number = total de unidades en inventario */
+  stock: number | null;
   onActivate: (p: Product) => void;
   onDeactivate: (p: Product) => void;
   onDelete: (p: Product) => void;
@@ -299,6 +350,7 @@ interface ProductRowProps {
 
 const ProductRow = React.memo(function ProductRow({
   product: p,
+  stock,
   onActivate,
   onDeactivate,
   onDelete,
@@ -332,6 +384,20 @@ const ProductRow = React.memo(function ProductRow({
           <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-xs font-medium">
             <span className="w-1.5 h-1.5 bg-gray-400 rounded-full" />
             Inactivo
+          </span>
+        )}
+      </td>
+
+      {/* Stock: se carga asincrónicamente luego de que el evento product.activated
+          dispara el listener que crea el registro de inventario inicial. */}
+      <td className="px-4 py-3 hidden md:table-cell">
+        {stock === null ? (
+          <span className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin inline-block" />
+        ) : stock === 0 && !p.isActive ? (
+          <span className="text-xs text-gray-300 font-mono">—</span>
+        ) : (
+          <span className={`text-xs font-mono font-medium ${stock === 0 ? 'text-amber-600' : 'text-gray-700'}`}>
+            {stock} ud{stock !== 1 ? 's.' : '.'}
           </span>
         )}
       </td>

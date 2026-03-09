@@ -3,13 +3,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EntityManager } from 'typeorm';
+import { EntityManager, In } from 'typeorm';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ProductActivatedEvent } from 'src/events/domain/product-activated.event';
 import { CreateProductDto, ProductDetailsDto } from '../dto/product.dto';
 import { Category } from '../../../database/entities/category.entity';
 import { Product } from 'src/database/entities/product.entity';
+import { Inventory } from 'src/database/entities/inventory.entity';
+import { ProductVariation } from 'src/database/entities/productVariation.entity';
 import { errorMessages } from 'src/errors/custom';
 import { validate } from 'class-validator';
 import { successObject } from 'src/common/helper/sucess-response.interceptor';
@@ -43,7 +45,6 @@ export class ProductService {
     let items: Product[];
     let total: number;
 
-    // activeOnly=true → always filter active only, regardless of role (used by dashboard)
     if (activeOnly) {
       [items, total] = await this.entityManager.findAndCount(Product, {
         where: { isActive: true },
@@ -136,9 +137,6 @@ export class ProductService {
 
     const result = await query.returning(['id', 'isActive']).execute();
 
-    // Verificar que el UPDATE afectó filas ANTES de emitir el evento.
-    // Sin este guard, un producto no encontrado (race condition o merchantId incorrecto)
-    // dispararía el evento aunque la operación no haya tenido efecto en DB.
     if (result.affected < 1)
       throw new NotFoundException(errorMessages.product.notFound);
 
@@ -183,17 +181,29 @@ export class ProductService {
     merchantId: number,
     isAdmin = false,
   ) {
-    const query = this.entityManager
-      .createQueryBuilder()
-      .delete()
-      .from(Product)
-      .where('id = :productId', { productId });
 
-    if (!isAdmin) query.andWhere('merchantId = :merchantId', { merchantId });
+    const whereClause = isAdmin
+      ? { id: productId }
+      : { id: productId, merchantId };
 
-    const result = await query.execute();
-    if (result.affected < 1)
-      throw new NotFoundException(errorMessages.product.notFound);
+    const product = await this.entityManager.findOne(Product, {
+      where: whereClause,
+    });
+    if (!product) throw new NotFoundException(errorMessages.product.notFound);
+
+    const variations = await this.entityManager.find(ProductVariation, {
+      where: { productId },
+    });
+
+    if (variations.length > 0) {
+      const variationIds = variations.map((v) => v.id);
+      await this.entityManager.delete(Inventory, {
+        productVariationId: In(variationIds),
+      });
+      await this.entityManager.delete(ProductVariation, { productId });
+    }
+
+    await this.entityManager.delete(Product, { id: productId });
     return successObject;
   }
 }

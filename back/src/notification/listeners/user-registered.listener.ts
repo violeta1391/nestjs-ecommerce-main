@@ -11,9 +11,6 @@ export class UserRegisteredListener {
     this.logger.log(
       `[user.registered] userId=${event.userId}, email=${event.email}`,
     );
-
-    // Punto de extensión desacoplado: AuthModule no sabe quién reacciona aquí.
-    // Casos de uso típicos: welcome email, perfil inicial, onboarding flow, auditoría.
     await this.sendWelcomeEmail(event.email);
   }
 
