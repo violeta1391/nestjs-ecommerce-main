@@ -1,19 +1,21 @@
-import { register } from 'tsconfig-paths';
-import { resolve } from 'path';
-// __dirname = /var/task/back/api  →  baseUrl = /var/task/back
-register({ baseUrl: resolve(__dirname, '..'), paths: {} });
+const { register } = require('tsconfig-paths');
+const { resolve } = require('path');
 
-import { NestFactory } from '@nestjs/core';
-import { ExpressAdapter } from '@nestjs/platform-express';
-import { ValidationPipe } from '@nestjs/common';
-import { AppModule } from '../src/app.module';
-import * as express from 'express';
-import type { Request, Response } from 'express';
+register({
+  baseUrl: resolve(__dirname, '..'),
+  paths: {},
+});
+
+const { NestFactory } = require('@nestjs/core');
+const { ExpressAdapter } = require('@nestjs/platform-express');
+const { ValidationPipe } = require('@nestjs/common');
+const { AppModule } = require('../src/app.module');
+const express = require('express');
 
 const server = express();
 let isInitialized = false;
 
-async function bootstrap(): Promise<void> {
+async function bootstrap() {
   if (isInitialized) return;
 
   const app = await NestFactory.create(
@@ -31,11 +33,12 @@ async function bootstrap(): Promise<void> {
   });
 
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
+
   await app.init();
   isInitialized = true;
 }
 
-export default async function handler(req: Request, res: Response): Promise<void> {
+export default async function handler(req, res) {
   await bootstrap();
   server(req, res);
 }
