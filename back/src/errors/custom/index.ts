@@ -5,58 +5,58 @@ export interface ErrorBody extends Error {
 export const errorMessages = {
   auth: {
     wronCredentials: {
-      message: 'wrong data provided',
-      code: '60001',
+      message: 'Wrong credentials provided',
+      code: '401', 
     },
     userAlreadyExist: {
-      message: 'user already exist',
-      code: '60002',
+      message: 'User already exists',
+      code: '409', 
     },
     expiredToken: {
-      message: 'token expired',
-      code: '60003',
+      message: 'Token expired',
+      code: '401', 
     },
     invlidToken: {
-      message: 'invlid token',
-      code: '60004',
+      message: 'Invalid token',
+      code: '401', 
     },
     notAllowed: {
-      message: 'not allowed',
-      code: '60005',
+      message: 'You do not have permission to perform this action',
+      code: '403', 
     },
   },
   user: {
     notFound: {
-      message: 'user not found',
-      code: '60101',
+      message: 'User not found',
+      code: '404',
     },
   },
   role: {
     notFound: {
-      message: 'role not found',
-      code: '60201',
+      message: 'Role not found',
+      code: '404',
     },
   },
   category: {
     notFound: {
-      message: 'category not found',
-      code: '60301',
+      message: 'Category not found',
+      code: '404', 
     },
   },
   product: {
     notFound: {
-      message: 'product not found',
-      code: '60401',
+      message: 'Product not found',
+      code: '404', 
     },
     notFulfilled: {
-      message: 'not all product info is fulfilled',
-      code: '60402',
+      message: 'Product information is incomplete',
+      code: '400', 
     },
   },
   global: {
     internalError: {
-      message: 'something went wrong',
-      code: '70000',
+      message: 'An internal server error occurred',
+      code: '500', 
     },
   },
 };

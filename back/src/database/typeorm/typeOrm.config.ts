@@ -6,17 +6,19 @@ import { DataSourceOptions } from 'typeorm';
 const envFilePath: string = getEnvPath(
   resolve(__dirname, '../..', 'common/envs'),
 );
+
 config({ path: envFilePath });
-export const dataSourceOptions: DataSourceOptions = {
+
+export const dataSourceOptions: any = {
   type: 'postgres',
   host: process.env.DATABASE_HOST,
-  port: parseInt(process.env.DATABASE_PORT, 10),
-  database: process.env.DATABASE_NAME,
+  port: parseInt(process.env.DATABASE_PORT),
   username: process.env.DATABASE_USER,
   password: process.env.DATABASE_PASSWORD,
-  entities: [process.env.DATABASE_ENTITIES],
-  migrations: ['dist/database/migration/history/*.js'],
-  logger: 'simple-console',
-  synchronize: false, 
-  logging: true,
+  database: process.env.DATABASE_NAME,
+  entities: ['dist/**/*.entity{.ts,.js}'],
+  migrations: ['dist/database/migration/history/*{.ts,.js}'],
+  autoLoadEntities: true,
+  synchronize: false,
+  ssl: process.env.POSTGRES_URL ? { rejectUnauthorized: false } : false,
 };
