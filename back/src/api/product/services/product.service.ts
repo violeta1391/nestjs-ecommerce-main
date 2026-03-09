@@ -314,6 +314,9 @@ export class ProductService {
       await this.entityManager.delete(Inventory, {
         productVariationId: In(variationIds),
       });
+      await this.entityManager.delete(ProductVariationPrice, {
+        productVariationId: In(variationIds),
+      });
       await this.entityManager.delete(ProductVariation, { productId });
     }
 
