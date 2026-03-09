@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, In } from 'typeorm';
-import { Inventory } from 'src/database/entities/inventory.entity';
-import { ProductVariation } from 'src/database/entities/productVariation.entity';
+import { Inventory } from '../database/entities/inventory.entity';
+import { ProductVariation } from '../database/entities/productVariation.entity';
 
 export interface InventoryRecord {
   id: number;

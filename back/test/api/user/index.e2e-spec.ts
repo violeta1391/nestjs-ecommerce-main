@@ -1,10 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
-import { AppModule } from 'src/app.module';
+import { AppModule } from '../../../src/app.module';
 import { Repository } from 'typeorm';
 import { generateMockToken } from 'test/mocks/jwt';
-import { User } from 'src/database/entities/user.entity';
+import { User } from '../../../src/database/entities/user.entity';
 
 describe('UserController (e2e)', () => {
   let app: INestApplication;

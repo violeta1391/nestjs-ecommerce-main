@@ -6,12 +6,12 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { UserRegisteredEvent } from 'src/events/domain/user-registered.event';
-import { RoleIds } from 'src/api/role/enum/role.enum';
-import { RoleService } from 'src/api/role/services/role.service';
-import { CreateUserDto } from 'src/api/user/dto/user.dto';
-import { UserService } from 'src/api/user/services/user.service';
-import { errorMessages } from 'src/errors/custom';
+import { UserRegisteredEvent } from '../../../events/domain/user-registered.event';
+import { RoleIds } from '../../role/enum/role.enum';
+import { RoleService } from '../../role/services/role.service';
+import { CreateUserDto } from '../../user/dto/user.dto';
+import { UserService } from '../../user/services/user.service';
+import { errorMessages } from '../../../errors/custom';
 import { PayloadDto } from '../dto/auth.dto';
 
 @Injectable()

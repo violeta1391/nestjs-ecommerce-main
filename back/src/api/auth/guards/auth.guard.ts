@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { TokenExpiredError } from 'jsonwebtoken';
-import { UserService } from 'src/api/user/services/user.service';
-import { errorMessages } from 'src/errors/custom';
+import { UserService } from '../../user/services/user.service';
+import { errorMessages } from '../../../errors/custom';
 
 @Injectable()
 export class AuthGuard implements CanActivate {

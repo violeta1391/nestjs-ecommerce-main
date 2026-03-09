@@ -4,7 +4,7 @@ import {
   Categories,
   Category,
   CategoryIds,
-} from 'src/database/entities/category.entity';
+} from '../../entities/category.entity';
 import { Repository } from 'typeorm';
 import { SeederInterface } from '../seeder.interface';
 

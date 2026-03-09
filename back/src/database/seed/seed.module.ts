@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { configuration } from 'src/config';
-import { Category } from 'src/database/entities/category.entity';
-import { Role } from 'src/database/entities/role.entity';
-import { User } from 'src/database/entities/user.entity';
-import { TypeOrmConfigService } from 'src/database/typeorm/typeorm.service';
+import { configuration } from '../../config';
+import { Category } from '../entities/category.entity';
+import { Role } from '../entities/role.entity';
+import { User } from '../entities/user.entity';
+import { TypeOrmConfigService } from '../typeorm/typeorm.service';
 import { Color } from '../entities/color.entity';
 import { Country } from '../entities/country.entity';
 import { Currency } from '../entities/currency.entity';

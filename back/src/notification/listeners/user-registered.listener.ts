@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { UserRegisteredEvent } from 'src/events/domain/user-registered.event';
+import { UserRegisteredEvent } from '../../events/domain/user-registered.event';
 
 @Injectable()
 export class UserRegisteredListener {

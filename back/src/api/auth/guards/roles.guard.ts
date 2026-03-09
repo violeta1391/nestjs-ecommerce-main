@@ -5,8 +5,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { UserService } from 'src/api/user/services/user.service';
-import { errorMessages } from 'src/errors/custom';
+import { UserService } from '../../user/services/user.service';
+import { errorMessages } from '../../../errors/custom';
 
 @Injectable()
 export class RolesGuard implements CanActivate {

@@ -4,7 +4,7 @@ import {
   Countries,
   Country,
   CountryCodes,
-} from 'src/database/entities/country.entity';
+} from '../../entities/country.entity';
 import { Repository } from 'typeorm';
 import { SeederInterface } from '../seeder.interface';
 

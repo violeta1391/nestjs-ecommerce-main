@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Size, SizeCodes } from 'src/database/entities/size.entity';
+import { Size, SizeCodes } from '../../entities/size.entity';
 import { Repository } from 'typeorm';
 import { SeederInterface } from '../seeder.interface';
 

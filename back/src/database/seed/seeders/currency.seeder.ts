@@ -4,7 +4,7 @@ import {
   Currency,
   CurrencyCodes,
   CurrencyNames,
-} from 'src/database/entities/currency.entity';
+} from '../../entities/currency.entity';
 import { Repository } from 'typeorm';
 import { SeederInterface } from '../seeder.interface';
 

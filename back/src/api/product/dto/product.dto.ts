@@ -33,7 +33,7 @@ export class PaginationQueryDto {
   @IsBoolean()
   activeOnly?: boolean;
 }
-import { variationTypesKeys } from 'src/database/entities/product.entity';
+import { variationTypesKeys } from '../../../database/entities/product.entity';
 import { ProductDetails, ProductDetailsTypeFn } from './productDetails';
 
 export class CreateProductDto {

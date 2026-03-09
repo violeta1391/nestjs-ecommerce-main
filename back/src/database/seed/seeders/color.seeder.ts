@@ -4,7 +4,7 @@ import {
   Color,
   Colors,
   ColorsHexCodes,
-} from 'src/database/entities/color.entity';
+} from '../../entities/color.entity';
 import { Repository } from 'typeorm';
 import { SeederInterface } from '../seeder.interface';
 

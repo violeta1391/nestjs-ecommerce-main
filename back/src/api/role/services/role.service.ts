@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Role } from 'src/database/entities/role.entity';
+import { Role } from '../../../database/entities/role.entity';
 import { AssignRoleDto } from '../dto/role.dto';
-import { UserService } from 'src/api/user/services/user.service';
-import { errorMessages } from 'src/errors/custom';
+import { UserService } from '../../user/services/user.service';
+import { errorMessages } from '../../../errors/custom';
 
 @Injectable()
 export class RoleService {

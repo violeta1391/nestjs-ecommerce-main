@@ -1,4 +1,4 @@
-import { getEnvPath } from 'src/common/helper/env.helper';
+import { getEnvPath } from '../common/helper/env.helper';
 import { config } from 'dotenv';
 import { resolve } from 'path';
 

@@ -1,5 +1,5 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
-import { Auth } from 'src/api/auth/guards/auth.decorator';
+import { Auth } from '../../auth/guards/auth.decorator';
 import { AssignRoleDto } from '../dto/role.dto';
 import { RoleIds } from '../enum/role.enum';
 import { RoleService } from '../services/role.service';

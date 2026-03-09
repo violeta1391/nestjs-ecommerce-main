@@ -6,20 +6,20 @@ import {
 import { EntityManager, In } from 'typeorm';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ProductActivatedEvent } from 'src/events/domain/product-activated.event';
+import { ProductActivatedEvent } from '../../../events/domain/product-activated.event';
 import { CreateInventoryDto, CreatePriceDto, CreateProductDto, CreateVariationDto, ProductDetailsDto } from '../dto/product.dto';
 import { Category } from '../../../database/entities/category.entity';
-import { Color } from 'src/database/entities/color.entity';
-import { Country } from 'src/database/entities/country.entity';
-import { Currency } from 'src/database/entities/currency.entity';
-import { Size } from 'src/database/entities/size.entity';
-import { Product } from 'src/database/entities/product.entity';
-import { Inventory } from 'src/database/entities/inventory.entity';
-import { ProductVariation } from 'src/database/entities/productVariation.entity';
-import { ProductVariationPrice } from 'src/database/entities/productVariation_price.entity';
-import { errorMessages } from 'src/errors/custom';
+import { Color } from '../../../database/entities/color.entity';
+import { Country } from '../../../database/entities/country.entity';
+import { Currency } from '../../../database/entities/currency.entity';
+import { Size } from '../../../database/entities/size.entity';
+import { Product } from '../../../database/entities/product.entity';
+import { Inventory } from '../../../database/entities/inventory.entity';
+import { ProductVariation } from '../../../database/entities/productVariation.entity';
+import { ProductVariationPrice } from '../../../database/entities/productVariation_price.entity';
+import { errorMessages } from '../../../errors/custom';
 import { validate } from 'class-validator';
-import { successObject } from 'src/common/helper/sucess-response.interceptor';
+import { successObject } from '../../../common/helper/sucess-response.interceptor';
 
 export interface PaginatedProducts {
   items: Product[];

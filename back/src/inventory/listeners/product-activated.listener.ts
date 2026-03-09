@@ -2,10 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
-import { Inventory } from 'src/database/entities/inventory.entity';
-import { Product } from 'src/database/entities/product.entity';
-import { ProductVariation } from 'src/database/entities/productVariation.entity';
-import { ProductActivatedEvent } from 'src/events/domain/product-activated.event';
+import { Inventory } from '../../database/entities/inventory.entity';
+import { Product } from '../../database/entities/product.entity';
+import { ProductVariation } from '../../database/entities/productVariation.entity';
+import { ProductActivatedEvent } from '../../events/domain/product-activated.event';
 
 @Injectable()
 export class ProductActivatedListener {

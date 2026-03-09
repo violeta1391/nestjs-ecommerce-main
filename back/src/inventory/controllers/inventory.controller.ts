@@ -1,6 +1,6 @@
 import { Controller, Get, Param } from '@nestjs/common';
-import { Auth } from 'src/api/auth/guards/auth.decorator';
-import { FindOneParams } from 'src/common/helper/findOneParams.dto';
+import { Auth } from '../../api/auth/guards/auth.decorator';
+import { FindOneParams } from '../../common/helper/findOneParams.dto';
 import { InventoryService } from '../inventory.service';
 
 @Controller('inventory')
