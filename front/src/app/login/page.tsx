@@ -98,6 +98,7 @@ export default function LoginPage() {
             <p className="font-semibold mb-1">Cuenta admin (para demo):</p>
             <p>Email: <span className="font-mono">admin@admin.com</span></p>
             <p>Contraseña: <span className="font-mono">12345678</span></p>
+            <p>Consideraciones: <span className="font-mono">sólo la cuenta admin puede crear productos</span></p>
           </div>
         </div>
       </div>

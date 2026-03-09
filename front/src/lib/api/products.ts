@@ -1,5 +1,33 @@
 import { apiRequest } from './client';
 
+export interface ColorOption {
+  name: string;
+  hexCode: string;
+}
+
+export interface SizeOption {
+  code: string;
+}
+
+export interface CountryOption {
+  code: string;
+  name: string;
+}
+
+export interface CurrencyOption {
+  code: string;
+  name: string;
+}
+
+export interface VariationDraft {
+  colorName: string;
+  sizeCode: string;
+  countryCode: string;
+  quantity: number;
+  currencyCode: string;
+  price: number;
+}
+
 export interface Product {
   id: number;
   title: string;
@@ -98,4 +126,59 @@ export async function deleteProduct(productId: number): Promise<void> {
   await apiRequest<{ message: string }>(`/product/${productId}`, {
     method: 'DELETE',
   });
+}
+
+export async function listColors(): Promise<ColorOption[]> {
+  const res = await apiRequest<ColorOption[]>('/product/colors');
+  return res.data;
+}
+
+export async function listSizes(): Promise<SizeOption[]> {
+  const res = await apiRequest<SizeOption[]>('/product/sizes');
+  return res.data;
+}
+
+export async function createVariation(
+  productId: number,
+  payload: { colorName: string; sizeCode: string },
+): Promise<{ id: number }> {
+  const res = await apiRequest<{ id: number }>(`/product/${productId}/variations`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return res.data;
+}
+
+export async function listCountries(): Promise<CountryOption[]> {
+  const res = await apiRequest<CountryOption[]>('/product/countries');
+  return res.data;
+}
+
+export async function listCurrencies(): Promise<CurrencyOption[]> {
+  const res = await apiRequest<CurrencyOption[]>('/product/currencies');
+  return res.data;
+}
+
+export async function createVariationInventory(
+  productId: number,
+  variationId: number,
+  payload: { countryCode: string; quantity: number },
+): Promise<{ id: number }> {
+  const res = await apiRequest<{ id: number }>(
+    `/product/${productId}/variations/${variationId}/inventory`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+  return res.data;
+}
+
+export async function createVariationPrice(
+  productId: number,
+  variationId: number,
+  payload: { countryCode: string; currencyCode: string; price: number },
+): Promise<{ id: number }> {
+  const res = await apiRequest<{ id: number }>(
+    `/product/${productId}/variations/${variationId}/prices`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+  return res.data;
 }

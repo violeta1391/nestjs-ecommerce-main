@@ -20,7 +20,6 @@ export default function DashboardPage() {
   const currentPageRef = useRef(0);
   const isFetchingRef = useRef(false);
   const hasMoreRef = useRef(true);
-  // fetchId: invalida respuestas de fetches anteriores cuando se reinicia
   const fetchIdRef = useRef(0);
 
   const fetchNextPage = useCallback(async () => {
@@ -28,19 +27,15 @@ export default function DashboardPage() {
 
     isFetchingRef.current = true;
     const nextPage = currentPageRef.current + 1;
-    const myFetchId = ++fetchIdRef.current; // ID único para esta llamada
+    const myFetchId = ++fetchIdRef.current; 
 
     if (nextPage === 1) setLoading(true);
     else setLoadingMore(true);
 
     try {
       const data = await listProducts(nextPage, LIMIT, true);
-
-      // Si se reinició (nuevo refreshKey) mientras estábamos esperando, descartar
       if (myFetchId !== fetchIdRef.current) return;
 
-      // Filtro defensivo: garantiza que NUNCA aparezca un producto inactivo
-      // en el Dashboard independientemente del rol (Admin, Merchant o Customer)
       const activeItems = data.items.filter((p) => p.isActive);
       setProducts((prev) => (nextPage === 1 ? activeItems : [...prev, ...activeItems]));
       currentPageRef.current = data.page;
@@ -59,23 +54,17 @@ export default function DashboardPage() {
     }
   }, []);
 
-  /*
-   * Efecto principal: se dispara en el mount inicial Y cada vez que Inventario
-   * llama triggerRefresh() (ej.: activar, desactivar, crear, eliminar).
-   * Reinicia todo el estado paginado y arranca desde página 1.
-   */
   useEffect(() => {
     currentPageRef.current = 0;
     hasMoreRef.current = true;
     isFetchingRef.current = false;
-    fetchIdRef.current++; // Invalida fetches en vuelo
+    fetchIdRef.current++; 
     setProducts([]);
     setHasMore(true);
     setError('');
     fetchNextPage();
   }, [refreshKey, fetchNextPage]);
 
-  // Post-carga: si el sentinel sigue visible tras cargar una página, continuar cargando
   useEffect(() => {
     if (loading || loadingMore || !hasMore) return;
     const id = requestAnimationFrame(() => {
@@ -86,7 +75,6 @@ export default function DashboardPage() {
     return () => cancelAnimationFrame(id);
   }, [loading, loadingMore, hasMore, fetchNextPage]);
 
-  // IntersectionObserver: dispara al hacer scroll hasta el sentinel
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -137,7 +125,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Sentinel siempre en el DOM */}
       <div ref={sentinelRef} className="flex justify-center py-6 min-h-[1px]">
         {loadingMore && (
           <div className="flex items-center gap-2 text-sm text-gray-400">

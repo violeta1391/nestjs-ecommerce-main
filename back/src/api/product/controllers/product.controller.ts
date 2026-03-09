@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { RoleIds } from '../../role/enum/role.enum';
-import { CreateProductDto, PaginationQueryDto, ProductDetailsDto } from '../dto/product.dto';
+import { CreateInventoryDto, CreatePriceDto, CreateProductDto, CreateVariationDto, PaginationQueryDto, ProductDetailsDto } from '../dto/product.dto';
 import { ProductService } from '../services/product.service';
 import { Auth } from 'src/api/auth/guards/auth.decorator';
 import { FindOneParams } from 'src/common/helper/findOneParams.dto';
@@ -27,6 +27,30 @@ export class ProductController {
       query.limit ?? 10,
       query.activeOnly ?? false,
     );
+  }
+
+  @Auth()
+  @Get('colors')
+  listColors() {
+    return this.productService.listColors();
+  }
+
+  @Auth()
+  @Get('sizes')
+  listSizes() {
+    return this.productService.listSizes();
+  }
+
+  @Auth()
+  @Get('countries')
+  listCountries() {
+    return this.productService.listCountries();
+  }
+
+  @Auth()
+  @Get('currencies')
+  listCurrencies() {
+    return this.productService.listCurrencies();
   }
 
   @Get(':id')
@@ -71,6 +95,41 @@ export class ProductController {
   ) {
     const isAdmin = user.roles?.some((r) => r.id === RoleIds.Admin);
     return this.productService.deactivateProduct(product.id, user.id, isAdmin);
+  }
+
+  @Auth(RoleIds.Admin, RoleIds.Merchant)
+  @Post(':id/variations')
+  async createVariation(
+    @Param() product: FindOneParams,
+    @Body() body: CreateVariationDto,
+    @CurrentUser() user: User,
+  ) {
+    const isAdmin = user.roles?.some((r) => r.id === RoleIds.Admin);
+    return this.productService.createVariation(product.id, body, user.id, isAdmin);
+  }
+
+  @Auth(RoleIds.Admin, RoleIds.Merchant)
+  @Post(':id/variations/:variationId/inventory')
+  async createVariationInventory(
+    @Param('id', ParseIntPipe) productId: number,
+    @Param('variationId', ParseIntPipe) variationId: number,
+    @Body() body: CreateInventoryDto,
+    @CurrentUser() user: User,
+  ) {
+    const isAdmin = user.roles?.some((r) => r.id === RoleIds.Admin);
+    return this.productService.createVariationInventory(productId, variationId, body, user.id, isAdmin);
+  }
+
+  @Auth(RoleIds.Admin, RoleIds.Merchant)
+  @Post(':id/variations/:variationId/prices')
+  async createVariationPrice(
+    @Param('id', ParseIntPipe) productId: number,
+    @Param('variationId', ParseIntPipe) variationId: number,
+    @Body() body: CreatePriceDto,
+    @CurrentUser() user: User,
+  ) {
+    const isAdmin = user.roles?.some((r) => r.id === RoleIds.Admin);
+    return this.productService.createVariationPrice(productId, variationId, body, user.id, isAdmin);
   }
 
   @Auth(RoleIds.Admin, RoleIds.Merchant)

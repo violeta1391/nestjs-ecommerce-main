@@ -11,7 +11,19 @@ import {
   deactivateProduct,
   deleteProduct,
   getProduct,
+  listColors,
+  listSizes,
+  listCountries,
+  listCurrencies,
+  createVariation,
+  createVariationInventory,
+  createVariationPrice,
   Product,
+  ColorOption,
+  SizeOption,
+  CountryOption,
+  CurrencyOption,
+  VariationDraft,
 } from '@/lib/api/products';
 import { getProductInventory } from '@/lib/api/inventory';
 
@@ -31,8 +43,6 @@ export default function InventoryPage() {
   const [loadingList, setLoadingList] = useState(true);
   const [listError, setListError] = useState('');
   const [showWizard, setShowWizard] = useState(false);
-
-  // Stock map: productId → total quantity (null = cargando)
   const [stockMap, setStockMap] = useState<Map<number, number | null>>(new Map());
 
   // Pagination state
@@ -43,16 +53,12 @@ export default function InventoryPage() {
   // Per-row loading states
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-
-  // Refs para callbacks estables (evitan stale closures sin re-crear handlers)
   const currentPageRef = useRef(1);
   const totalRef = useRef(0);
   const totalPagesRef = useRef(1);
-  // Ref sincronizado en cada render: permite leer products.length en callbacks sin agregarlo como dep
   const productsLengthRef = useRef(0);
   productsLengthRef.current = products.length;
 
-  /* ── fetchProducts ──────────────────────────────────────────── */
   const fetchProducts = useCallback(async (page: number) => {
     setLoadingList(true);
     setListError('');
@@ -62,14 +68,10 @@ export default function InventoryPage() {
       setCurrentPage(data.page);
       setTotalPages(data.totalPages);
       setTotal(data.total);
-      // Actualizar refs para que los callbacks siempre lean el valor actual
       currentPageRef.current = data.page;
       totalRef.current = data.total;
       totalPagesRef.current = data.totalPages;
 
-      // Marcar todos como "cargando stock" y luego resolverlos en paralelo.
-      // El fetch de stock es no-bloqueante: la tabla se muestra inmediatamente
-      // y la columna Stock se actualiza cuando llegan las respuestas del evento.
       const ids = data.items.map((p) => p.id);
       setStockMap(new Map(ids.map((id) => [id, null])));
       Promise.all(
@@ -98,11 +100,9 @@ export default function InventoryPage() {
       setTogglingId(product.id);
       try {
         const result = await activateProduct(product.id);
-        // Actualiza solo el producto afectado en el estado local, sin re-fetch de toda la tabla
         setProducts((prev) =>
           prev.map((p) => (p.id === result.id ? { ...p, isActive: result.isActive } : p)),
         );
-        // Actualiza el stock de este producto: la activación crea el registro de inventario
         getProductInventory(product.id)
           .then((records) => {
             const qty = records.reduce((s, r) => s + r.quantity, 0);
@@ -153,10 +153,8 @@ export default function InventoryPage() {
         const newTotalPages = Math.max(1, Math.ceil(newTotal / PAGE_SIZE));
 
         if (productsLengthRef.current === 1 && currentPageRef.current > 1) {
-          // Caso edge: era el único ítem de una página > 1 → fetch de la página anterior
           await fetchProducts(currentPageRef.current - 1);
         } else {
-          // Caso normal: quedan ítems en la página → actualización local sin re-fetch
           setProducts((prev) => prev.filter((p) => p.id !== product.id));
           setStockMap((prev) => { const next = new Map(prev); next.delete(product.id); return next; });
           setTotal(newTotal);
@@ -339,7 +337,6 @@ export default function InventoryPage() {
 ════════════════════════════════════════════════════════════════ */
 interface ProductRowProps {
   product: Product;
-  /** null = cargando, number = total de unidades en inventario */
   stock: number | null;
   onActivate: (p: Product) => void;
   onDeactivate: (p: Product) => void;
@@ -388,8 +385,6 @@ const ProductRow = React.memo(function ProductRow({
         )}
       </td>
 
-      {/* Stock: se carga asincrónicamente luego de que el evento product.activated
-          dispara el listener que crea el registro de inventario inicial. */}
       <td className="px-4 py-3 hidden md:table-cell">
         {stock === null ? (
           <span className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin inline-block" />
@@ -404,7 +399,6 @@ const ProductRow = React.memo(function ProductRow({
 
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-2">
-          {/* Activate / Deactivate */}
           {isBusy ? (
             <span className="inline-block w-4 h-4 border-2 border-[#c1292e] border-t-transparent rounded-full animate-spin" />
           ) : p.isActive ? (
@@ -425,7 +419,6 @@ const ProductRow = React.memo(function ProductRow({
             </button>
           )}
 
-          {/* Delete button */}
           <button
             onClick={() => onDelete(p)}
             disabled={isBusy}
@@ -458,7 +451,10 @@ function ProductWizard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Step 1
   const [categoryId, setCategoryId] = useState('1');
+
+  // Step 2 — details
   const [title, setTitle] = useState('Laptop Demo');
   const [code, setCode] = useState(`LAPTOP-${Date.now().toString().slice(-4)}`);
   const [brand, setBrand] = useState('Dell');
@@ -469,6 +465,42 @@ function ProductWizard({
   const [description, setDescription] = useState('Laptop de alta performance.');
   const [about, setAbout] = useState('Alta performance\nPantalla Full HD\nBatería larga duración');
 
+  // Step 2 — especificaciones (variaciones inline)
+  const [hasVariations, setHasVariations] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [colors, setColors] = useState<ColorOption[]>([]);
+  const [sizes, setSizes] = useState<SizeOption[]>([]);
+  const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
+  const [variationDrafts, setVariationDrafts] = useState<VariationDraft[]>([]);
+  const [draftColor, setDraftColor] = useState('');
+  const [draftSize, setDraftSize] = useState('');
+  const [draftCountry, setDraftCountry] = useState('');
+  const [draftCurrency, setDraftCurrency] = useState('');
+  const [draftQuantity, setDraftQuantity] = useState('0');
+  const [draftPrice, setDraftPrice] = useState('0');
+
+  /* ── Carga de opciones al activar especificaciones ───────────── */
+  useEffect(() => {
+    if (!hasVariations) return;
+    setLoadingOptions(true);
+    Promise.all([listColors(), listSizes(), listCountries(), listCurrencies()])
+      .then(([fetchedColors, fetchedSizes, fetchedCountries, fetchedCurrencies]) => {
+        const realColors = fetchedColors.filter((c) => c.name !== 'NA');
+        const realSizes = fetchedSizes.filter((s) => s.code !== 'NA');
+        setColors(realColors);
+        setSizes(realSizes);
+        setCountries(fetchedCountries);
+        setCurrencies(fetchedCurrencies);
+        setDraftColor(realColors[0]?.name ?? '');
+        setDraftSize(realSizes[0]?.code ?? '');
+        setDraftCountry(fetchedCountries[0]?.code ?? '');
+        setDraftCurrency(fetchedCurrencies[0]?.code ?? '');
+      })
+      .finally(() => setLoadingOptions(false));
+  }, [hasVariations]);
+
+  /* ── Handlers ──────────────────────────────────────────────── */
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -488,14 +520,40 @@ function ProductWizard({
     e.preventDefault();
     if (!product) return;
     setError('');
+    if (hasVariations && variationDrafts.length === 0) {
+      setError('Agregá al menos una especificación antes de continuar');
+      return;
+    }
     setLoading(true);
     try {
       await addProductDetails(product.id, {
-        title, code, variationType: 'NONE',
+        title, code,
+        variationType: hasVariations ? 'SizeAndColor' : 'NONE',
         details: { category: 'Computers', capacity: parseInt(capacity), capacityUnit, capacityType, brand, series },
         about: about.split('\n').filter((l) => l.trim()),
         description,
       });
+      if (hasVariations) {
+        await Promise.all(
+          variationDrafts.map(async (draft) => {
+            const { id: variationId } = await createVariation(product.id, {
+              colorName: draft.colorName,
+              sizeCode: draft.sizeCode,
+            });
+            await Promise.all([
+              createVariationInventory(product.id, variationId, {
+                countryCode: draft.countryCode,
+                quantity: draft.quantity,
+              }),
+              createVariationPrice(product.id, variationId, {
+                countryCode: draft.countryCode,
+                currencyCode: draft.currencyCode,
+                price: draft.price,
+              }),
+            ]);
+          }),
+        );
+      }
       setProduct(await getProduct(product.id));
       setStep(3);
     } catch (err: unknown) {
@@ -519,6 +577,22 @@ function ProductWizard({
     }
   };
 
+  const addVariationDraft = () => {
+    if (!draftColor || !draftSize || !draftCountry || !draftCurrency) return;
+    if (variationDrafts.some((d) => d.colorName === draftColor && d.sizeCode === draftSize)) return;
+    setVariationDrafts((prev) => [
+      ...prev,
+      {
+        colorName: draftColor,
+        sizeCode: draftSize,
+        countryCode: draftCountry,
+        quantity: Math.max(0, parseInt(draftQuantity) || 0),
+        currencyCode: draftCurrency,
+        price: Math.max(0, parseFloat(draftPrice) || 0),
+      },
+    ]);
+  };
+
   return (
     <div className="bg-white border-2 border-[#c1292e]/20 rounded-xl p-6">
       <div className="flex items-center justify-between mb-5">
@@ -526,9 +600,8 @@ function ProductWizard({
         <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
       </div>
 
-      {/* Step indicator */}
       <div className="flex items-center gap-1 mb-6">
-        {[1, 2, 3, 4].map((n, i) => (
+        {Array.from({ length: 4 }, (_, i) => i + 1).map((n, i) => (
           <div key={n} className="flex items-center flex-1">
             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
               n < step ? 'bg-green-500 text-white' : n === step ? 'bg-[#c1292e] text-white' : 'bg-gray-200 text-gray-500'
@@ -544,6 +617,7 @@ function ProductWizard({
         <div className="mb-4 text-sm text-[#c1292e] bg-red-50 border border-red-200 rounded-lg px-4 py-3">{error}</div>
       )}
 
+      {/* ── Step 1: Categoría ─────────────────────────────────── */}
       {step === 1 && (
         <form onSubmit={handleCreateProduct} className="space-y-4">
           <p className="text-sm text-gray-500">Seleccioná una categoría para el nuevo producto.</p>
@@ -552,7 +626,7 @@ function ProductWizard({
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]">
               <option value="1">Computadoras (ID: 1)</option>
-              <option value="2">Moda (ID: 2)</option>
+              <option value="2">Monitores (ID: 2)</option>
             </select>
           </div>
           <button type="submit" disabled={loading}
@@ -562,6 +636,7 @@ function ProductWizard({
         </form>
       )}
 
+      {/* ── Step 2: Detalles + especificaciones opcionales ────── */}
       {step === 2 && (
         <form onSubmit={handleAddDetails} className="space-y-3">
           <p className="text-sm text-gray-500">Producto <span className="font-mono font-bold">#{product?.id}</span> creado. Agregá los detalles.</p>
@@ -592,6 +667,17 @@ function ProductWizard({
               </div>
             </div>
             <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Especificaciones</label>
+              <select
+                value={hasVariations ? 'yes' : 'no'}
+                onChange={(e) => { setHasVariations(e.target.value === 'yes'); setVariationDrafts([]); }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]"
+              >
+                <option value="no">Sin especificaciones</option>
+                <option value="yes">Con especificaciones</option>
+              </select>
+            </div>
+            <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
               <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} required
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e] resize-none" />
@@ -602,6 +688,100 @@ function ProductWizard({
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e] resize-none" />
             </div>
           </div>
+
+          {/* Variaciones inline */}
+          {hasVariations && (
+            <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-3">
+              {loadingOptions ? (
+                <div className="flex justify-center py-4">
+                  <span className="w-5 h-5 border-2 border-[#c1292e] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Nueva especificación</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Color</label>
+                      <select value={draftColor} onChange={(e) => setDraftColor(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]">
+                        {colors.map((c) => (
+                          <option key={c.name} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Talla</label>
+                      <select value={draftSize} onChange={(e) => setDraftSize(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]">
+                        {sizes.map((s) => (
+                          <option key={s.code} value={s.code}>{s.code}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">País</label>
+                      <select value={draftCountry} onChange={(e) => setDraftCountry(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]">
+                        {countries.map((c) => (
+                          <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Stock inicial</label>
+                      <input type="number" min="0" value={draftQuantity}
+                        onChange={(e) => setDraftQuantity(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Moneda</label>
+                      <select value={draftCurrency} onChange={(e) => setDraftCurrency(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]">
+                        {currencies.map((c) => (
+                          <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Precio</label>
+                      <input type="number" min="0" step="0.01" value={draftPrice}
+                        onChange={(e) => setDraftPrice(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c1292e]" />
+                    </div>
+                  </div>
+                  <button type="button" onClick={addVariationDraft}
+                    className="w-full py-1.5 bg-white border border-gray-300 hover:border-[#c1292e] hover:text-[#c1292e] text-gray-600 text-sm rounded-lg transition-colors">
+                    + Agregar especificación
+                  </button>
+                  {variationDrafts.length > 0 && (
+                    <div className="space-y-1.5">
+                      {variationDrafts.map((d, i) => (
+                        <div key={i}
+                          className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="font-medium text-gray-800">
+                              <span className="inline-flex items-center gap-1 mr-1">
+                                <span className="w-2.5 h-2.5 rounded-full border border-gray-300 inline-block"
+                                  style={{ backgroundColor: colors.find((c) => c.name === d.colorName)?.hexCode ?? '#ccc' }} />
+                                {d.colorName}
+                              </span>
+                              <span className="bg-gray-100 px-1.5 py-0.5 rounded font-mono">{d.sizeCode}</span>
+                            </span>
+                            <span className="text-gray-500">📦 {d.quantity} ud. · {d.countryCode}</span>
+                            <span className="text-gray-500">💰 {d.price.toFixed(2)} {d.currencyCode}</span>
+                          </div>
+                          <button type="button"
+                            onClick={() => setVariationDrafts((prev) => prev.filter((_, j) => j !== i))}
+                            className="text-gray-400 hover:text-red-600 ml-2 flex-shrink-0">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           <button type="submit" disabled={loading}
             className="w-full bg-[#c1292e] hover:bg-red-700 disabled:opacity-60 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">
             {loading ? 'Guardando...' : 'Guardar Detalles →'}
@@ -609,15 +789,15 @@ function ProductWizard({
         </form>
       )}
 
+      {/* ── Step 3: Activar ───────────────────────────────────── */}
       {step === 3 && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-500">
-            El producto está listo para ser activado.
-          </p>
+          <p className="text-sm text-gray-500">El producto está listo para ser activado.</p>
           <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
             <div className="flex justify-between"><span className="text-gray-500">ID:</span><span className="font-mono">{product?.id}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Título:</span><span>{product?.title}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Código:</span><span className="font-mono">{product?.code}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Especificaciones:</span><span>{hasVariations ? 'Con especificaciones' : 'Sin especificaciones'}</span></div>
           </div>
           <button onClick={handleActivate} disabled={loading}
             className="w-full bg-[#c1292e] hover:bg-red-700 disabled:opacity-60 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
@@ -626,6 +806,7 @@ function ProductWizard({
         </div>
       )}
 
+      {/* ── Step 4: Éxito ─────────────────────────────────────── */}
       {step === 4 && (
         <div className="space-y-4">
           <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">

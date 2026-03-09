@@ -42,6 +42,40 @@ export class CreateProductDto {
   public categoryId: number;
 }
 
+export class CreateVariationDto {
+  @IsString()
+  @IsNotEmpty()
+  public colorName: string;
+
+  @IsString()
+  @IsNotEmpty()
+  public sizeCode: string;
+}
+
+export class CreateInventoryDto {
+  @IsString()
+  @IsNotEmpty()
+  public countryCode: string;
+
+  @IsInt()
+  @Min(0)
+  public quantity: number;
+}
+
+export class CreatePriceDto {
+  @IsString()
+  @IsNotEmpty()
+  public countryCode: string;
+
+  @IsString()
+  @IsNotEmpty()
+  public currencyCode: string;
+
+  @IsNumber()
+  @Min(0)
+  public price: number;
+}
+
 export class ProductDetailsDto {
   @IsString()
   @IsNotEmpty()

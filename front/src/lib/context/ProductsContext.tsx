@@ -3,10 +3,7 @@
 import { createContext, useContext, useState, useCallback } from 'react';
 
 interface ProductsContextValue {
-  /** Incrementa cada vez que hay una mutación de productos (crear/activar/desactivar/eliminar).
-   *  Los consumidores lo observan con useEffect([refreshKey]) para re-fetch. */
   refreshKey: number;
-  /** Llamar tras cualquier mutación exitosa para notificar a Dashboard e Inventario. */
   triggerRefresh: () => void;
 }
 

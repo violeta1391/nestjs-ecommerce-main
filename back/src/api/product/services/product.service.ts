@@ -7,11 +7,16 @@ import { EntityManager, In } from 'typeorm';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ProductActivatedEvent } from 'src/events/domain/product-activated.event';
-import { CreateProductDto, ProductDetailsDto } from '../dto/product.dto';
+import { CreateInventoryDto, CreatePriceDto, CreateProductDto, CreateVariationDto, ProductDetailsDto } from '../dto/product.dto';
 import { Category } from '../../../database/entities/category.entity';
+import { Color } from 'src/database/entities/color.entity';
+import { Country } from 'src/database/entities/country.entity';
+import { Currency } from 'src/database/entities/currency.entity';
+import { Size } from 'src/database/entities/size.entity';
 import { Product } from 'src/database/entities/product.entity';
 import { Inventory } from 'src/database/entities/inventory.entity';
 import { ProductVariation } from 'src/database/entities/productVariation.entity';
+import { ProductVariationPrice } from 'src/database/entities/productVariation_price.entity';
 import { errorMessages } from 'src/errors/custom';
 import { validate } from 'class-validator';
 import { successObject } from 'src/common/helper/sucess-response.interceptor';
@@ -174,6 +179,115 @@ export class ProductService {
     if (!product) throw new NotFoundException(errorMessages.product.notFound);
     const errors = await validate(product);
     return errors.length === 0;
+  }
+
+  async listColors(): Promise<Color[]> {
+    return this.entityManager.find(Color, { order: { name: 'ASC' } });
+  }
+
+  async listSizes(): Promise<Size[]> {
+    return this.entityManager.find(Size, { order: { code: 'ASC' } });
+  }
+
+  async listCountries(): Promise<Country[]> {
+    return this.entityManager.find(Country, { order: { name: 'ASC' } });
+  }
+
+  async listCurrencies(): Promise<Currency[]> {
+    return this.entityManager.find(Currency, { order: { name: 'ASC' } });
+  }
+
+  async createVariationInventory(
+    productId: number,
+    variationId: number,
+    body: CreateInventoryDto,
+    merchantId: number,
+    isAdmin = false,
+  ): Promise<{ id: number }> {
+    const whereClause = isAdmin ? { id: productId } : { id: productId, merchantId };
+    const product = await this.entityManager.findOne(Product, { where: whereClause });
+    if (!product) throw new NotFoundException(errorMessages.product.notFound);
+
+    const variation = await this.entityManager.findOne(ProductVariation, {
+      where: { id: variationId, productId },
+    });
+    if (!variation) throw new NotFoundException('Product variation not found');
+
+    const country = await this.entityManager.findOne(Country, { where: { code: body.countryCode } });
+    if (!country) throw new NotFoundException('Country not found');
+
+    const inventory = await this.entityManager.save(Inventory, {
+      productVariationId: variationId,
+      countryCode: body.countryCode,
+      quantity: body.quantity,
+    });
+    return { id: inventory.id };
+  }
+
+  async createVariationPrice(
+    productId: number,
+    variationId: number,
+    body: CreatePriceDto,
+    merchantId: number,
+    isAdmin = false,
+  ): Promise<{ id: number }> {
+    const whereClause = isAdmin ? { id: productId } : { id: productId, merchantId };
+    const product = await this.entityManager.findOne(Product, { where: whereClause });
+    if (!product) throw new NotFoundException(errorMessages.product.notFound);
+
+    const variation = await this.entityManager.findOne(ProductVariation, {
+      where: { id: variationId, productId },
+    });
+    if (!variation) throw new NotFoundException('Product variation not found');
+
+    const country = await this.entityManager.findOne(Country, { where: { code: body.countryCode } });
+    if (!country) throw new NotFoundException('Country not found');
+
+    const currency = await this.entityManager.findOne(Currency, { where: { code: body.currencyCode } });
+    if (!currency) throw new NotFoundException('Currency not found');
+
+    const price = await this.entityManager.save(ProductVariationPrice, {
+      productVariationId: variationId,
+      countryCode: body.countryCode,
+      currencyCode: body.currencyCode,
+      price: body.price,
+    });
+    return { id: price.id };
+  }
+
+  async createVariation(
+    productId: number,
+    body: CreateVariationDto,
+    merchantId: number,
+    isAdmin = false,
+  ): Promise<{ id: number }> {
+    const whereClause = isAdmin
+      ? { id: productId }
+      : { id: productId, merchantId };
+
+    const product = await this.entityManager.findOne(Product, {
+      where: whereClause,
+    });
+    if (!product) throw new NotFoundException(errorMessages.product.notFound);
+
+    const color = await this.entityManager.findOne(Color, {
+      where: { name: body.colorName },
+    });
+    if (!color) throw new NotFoundException('Color not found');
+
+    const size = await this.entityManager.findOne(Size, {
+      where: { code: body.sizeCode },
+    });
+    if (!size) throw new NotFoundException('Size not found');
+
+    const variation = await this.entityManager.save(ProductVariation, {
+      productId,
+      colorName: body.colorName,
+      sizeCode: body.sizeCode,
+      imageUrls: [],
+    });
+
+    return { id: variation.id };
   }
 
   async deleteProduct(

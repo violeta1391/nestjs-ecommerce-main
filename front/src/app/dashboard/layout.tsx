@@ -100,8 +100,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   return (
-    /* ProductsProvider envuelve TODO el dashboard para que ambas páginas
-       (Dashboard e Inventario) compartan el mismo refreshKey */
     <ProductsProvider>
       <div className="min-h-screen flex">
 
@@ -144,14 +142,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <span className="block w-5 h-0.5 bg-gray-700 rounded-full" />
             </button>
             <span className="text-sm font-medium text-gray-700 flex-1 truncate">{pageTitle}</span>
-            <span className="text-xs bg-[#c1292e] text-white px-3 py-1 rounded-full flex-shrink-0">
-              NestJS + Next.js
-            </span>
           </header>
-
-          {/* key={pathname} fuerza el remount del page component en cada navegación,
-              garantizando que los refs y estado se reseteen incluso si Next.js
-              intenta restaurar el árbol desde su router cache. */}
           <div key={pathname} className="flex-1 p-4 lg:p-6">
             {children}
           </div>
