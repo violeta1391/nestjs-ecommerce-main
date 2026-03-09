@@ -1,4 +1,8 @@
-import 'tsconfig-paths/register';
+import { register } from 'tsconfig-paths';
+import { resolve } from 'path';
+// __dirname = /var/task/back/api  →  baseUrl = /var/task/back
+register({ baseUrl: resolve(__dirname, '..'), paths: {} });
+
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
