@@ -1,12 +1,62 @@
 version: '3.8'
+
 services:
+  # ─── Database ───────────────────────────────────────────────
   postgres:
-    image: postgres
+    image: postgres:15-alpine
     environment:
       POSTGRES_USER: hassan
       POSTGRES_PASSWORD: password
+      POSTGRES_DB: ecommercedb
     volumes:
-      - ./database-data:/var/lib/postgresql/data/
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
     ports:
-      - 5432:5432
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hassan -d ecommercedb']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ─── Backend (NestJS) ───────────────────────────────────────
+  backend:
+    build:
+      context: ./back
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ecommercedb
+      DATABASE_USER: hassan
+      DATABASE_PASSWORD: password
+      DATABASE_ENTITIES: dist/**/*.entity.js
+      JWT_SECRET: keep-this-secret-private
+      ADMIN_EMAIL: admin@admin.com
+      ADMIN_PASSWORD: '12345678'
+      FRONTEND_URL: http://localhost:3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  # ─── Frontend (Next.js) ─────────────────────────────────────
+  frontend:
+    build:
+      context: ./front
+      dockerfile: Dockerfile
+      args:
+        # Baked in at build time — points to backend as seen from the browser
+        NEXT_PUBLIC_API_URL: http://localhost:3000
+    ports:
+      - '3001:3001'
+    depends_on:
+      - backend
+    restart: on-failure
+
+volumes:
+  postgres_data:
