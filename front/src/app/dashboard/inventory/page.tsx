@@ -17,14 +17,6 @@ import {
 const CATEGORY_NAMES: Record<number, string> = { 1: 'Computadoras', 2: 'Moda' };
 const PAGE_SIZE = 10;
 
-interface EventEntry {
-  id: number;
-  name: string;
-  payload: Record<string, unknown>;
-  listener?: string;
-  timestamp: string;
-}
-
 type WizardStep = 1 | 2 | 3 | 4;
 
 /* ═══════════════════════════════════════════════════════════════
@@ -38,7 +30,6 @@ export default function InventoryPage() {
   const [loadingList, setLoadingList] = useState(true);
   const [listError, setListError] = useState('');
   const [showWizard, setShowWizard] = useState(false);
-  const [events, setEvents] = useState<EventEntry[]>([]);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,42 +70,21 @@ export default function InventoryPage() {
     fetchProducts(1);
   }, [fetchProducts]);
 
-  /* ── addEvent ───────────────────────────────────────────────── */
-  const addEvent = useCallback(
-    (name: string, payload: Record<string, unknown>, listener?: string) => {
-      setEvents((prev) => [
-        { id: Date.now(), name, payload, listener, timestamp: new Date().toLocaleTimeString() },
-        ...prev,
-      ]);
-    },
-    [],
-  );
-
   /* ── handleActivate ─────────────────────────────────────────── */
   const handleActivate = useCallback(
     async (product: Product) => {
       setTogglingId(product.id);
       try {
         await activateProduct(product.id);
-        addEvent('ProductActivatedEvent', {
-          productId: product.id,
-          merchantId: product.merchantId,
-          categoryId: product.categoryId,
-        });
-        addEvent(
-          'ProductActivatedEvent',
-          { message: `Inventory initialization ready for product ${product.id}` },
-          'InventoryListener',
-        );
         await fetchProducts(currentPageRef.current);
-        triggerRefresh(); // Notifica al Dashboard
+        triggerRefresh();
       } catch (e: unknown) {
         alert(e instanceof Error ? e.message : 'Error al activar');
       } finally {
         setTogglingId(null);
       }
     },
-    [fetchProducts, addEvent, triggerRefresh],
+    [fetchProducts, triggerRefresh],
   );
 
   /* ── handleDeactivate ───────────────────────────────────────── */
@@ -124,7 +94,7 @@ export default function InventoryPage() {
       try {
         await deactivateProduct(product.id);
         await fetchProducts(currentPageRef.current);
-        triggerRefresh(); // Notifica al Dashboard
+        triggerRefresh();
       } catch (e: unknown) {
         alert(e instanceof Error ? e.message : 'Error al desactivar');
       } finally {
@@ -148,7 +118,7 @@ export default function InventoryPage() {
         const newTotalPages = Math.max(1, Math.ceil(newTotal / PAGE_SIZE));
         const targetPage = Math.min(currentPageRef.current, newTotalPages);
         await fetchProducts(targetPage);
-        triggerRefresh(); // Notifica al Dashboard
+        triggerRefresh();
       } catch (e: unknown) {
         alert(e instanceof Error ? e.message : 'Error al eliminar');
       } finally {
@@ -161,7 +131,7 @@ export default function InventoryPage() {
   /* ── handleWizardComplete ───────────────────────────────────── */
   const handleWizardComplete = useCallback(async () => {
     setShowWizard(false);
-    await fetchProducts(1); // El nuevo producto aparece en la primera página (orden DESC)
+    await fetchProducts(1);
     triggerRefresh();
   }, [fetchProducts, triggerRefresh]);
 
@@ -213,109 +183,103 @@ export default function InventoryPage() {
         <ProductWizard
           onComplete={handleWizardComplete}
           onCancel={() => setShowWizard(false)}
-          onEvent={addEvent}
         />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Table (2/3) */}
-        <div className="lg:col-span-2 space-y-3">
-          {loadingList && (
-            <div className="flex items-center justify-center py-16">
-              <div className="w-6 h-6 border-2 border-[#c1292e] border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
+      {/* Product table — full width */}
+      <div className="space-y-3">
+        {loadingList && (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-6 h-6 border-2 border-[#c1292e] border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
 
-          {listError && (
-            <div className="text-sm text-[#c1292e] bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-              {listError}
-            </div>
-          )}
+        {listError && (
+          <div className="text-sm text-[#c1292e] bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+            {listError}
+          </div>
+        )}
 
-          {!loadingList && products.length === 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl flex flex-col items-center justify-center py-16 text-center">
-              <span className="text-4xl mb-3">📦</span>
-              <p className="text-gray-500">No hay productos todavía</p>
-              <p className="text-sm text-gray-400 mt-1">Creá uno con &quot;+ Nuevo Producto&quot;</p>
-            </div>
-          )}
+        {!loadingList && products.length === 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl flex flex-col items-center justify-center py-16 text-center">
+            <span className="text-4xl mb-3">📦</span>
+            <p className="text-gray-500">No hay productos todavía</p>
+            <p className="text-sm text-gray-400 mt-1">Creá uno con &quot;+ Nuevo Producto&quot;</p>
+          </div>
+        )}
 
-          {!loadingList && products.length > 0 && (
-            <>
-              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Producto</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Categoría</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {products.map((p) => (
-                      <ProductRow
-                        key={p.id}
-                        product={p}
-                        onActivate={handleActivate}
-                        onDeactivate={handleDeactivate}
-                        onDelete={handleDelete}
-                        isToggling={togglingId === p.id}
-                        isDeleting={deletingId === p.id}
-                      />
-                    ))}
-                  </tbody>
-                </table>
+        {!loadingList && products.length > 0 && (
+          <>
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Producto</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Categoría</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {products.map((p) => (
+                    <ProductRow
+                      key={p.id}
+                      product={p}
+                      onActivate={handleActivate}
+                      onDeactivate={handleDeactivate}
+                      onDelete={handleDelete}
+                      isToggling={togglingId === p.id}
+                      isDeleting={deletingId === p.id}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex items-center justify-between px-1">
+              <p className="text-xs text-gray-500">
+                {total} {total === 1 ? 'producto' : 'productos'} · Página {currentPage} de {totalPages}
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => fetchProducts(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                  className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  ← Anterior
+                </button>
+
+                {paginationItems.map((item, i) =>
+                  item === 'ellipsis' ? (
+                    <span key={`e-${i}`} className="px-2 text-xs text-gray-400">…</span>
+                  ) : (
+                    <button
+                      key={item}
+                      onClick={() => fetchProducts(item)}
+                      className={`w-8 h-8 text-xs rounded-lg font-medium transition-colors ${
+                        currentPage === item
+                          ? 'bg-[#c1292e] text-white'
+                          : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  ),
+                )}
+
+                <button
+                  onClick={() => fetchProducts(currentPage + 1)}
+                  disabled={currentPage >= totalPages}
+                  className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Siguiente →
+                </button>
               </div>
-
-              {/* Pagination */}
-              <div className="flex items-center justify-between px-1">
-                <p className="text-xs text-gray-500">
-                  {total} {total === 1 ? 'producto' : 'productos'} · Página {currentPage} de {totalPages}
-                </p>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => fetchProducts(currentPage - 1)}
-                    disabled={currentPage <= 1}
-                    className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >
-                    ← Anterior
-                  </button>
-
-                  {paginationItems.map((item, i) =>
-                    item === 'ellipsis' ? (
-                      <span key={`e-${i}`} className="px-2 text-xs text-gray-400">…</span>
-                    ) : (
-                      <button
-                        key={item}
-                        onClick={() => fetchProducts(item)}
-                        className={`w-8 h-8 text-xs rounded-lg font-medium transition-colors ${
-                          currentPage === item
-                            ? 'bg-[#c1292e] text-white'
-                            : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        {item}
-                      </button>
-                    ),
-                  )}
-
-                  <button
-                    onClick={() => fetchProducts(currentPage + 1)}
-                    disabled={currentPage >= totalPages}
-                    className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Siguiente →
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Event Log (1/3) */}
-        <EventLog events={events} />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -391,7 +355,7 @@ const ProductRow = React.memo(function ProductRow({
               title={!p.title || !p.code ? 'Agregá detalles antes de activar' : ''}
               className="text-xs bg-[#c1292e] hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-2.5 py-1 rounded-lg transition-colors"
             >
-              Activar ⚡
+              Activar
             </button>
           )}
 
@@ -414,59 +378,14 @@ const ProductRow = React.memo(function ProductRow({
 });
 
 /* ═══════════════════════════════════════════════════════════════
-   EVENT LOG — React.memo
-════════════════════════════════════════════════════════════════ */
-const EventLog = React.memo(function EventLog({ events }: { events: EventEntry[] }) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col h-fit">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="w-2 h-2 bg-[#c1292e] rounded-full animate-pulse" />
-        <h3 className="text-sm font-semibold text-gray-800">Event Log</h3>
-      </div>
-
-      {events.length === 0 ? (
-        <p className="text-xs text-gray-400 text-center py-8">
-          Los eventos aparecerán aquí al activar un producto
-        </p>
-      ) : (
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          {events.map((ev) => (
-            <EventLogEntry key={ev.id} event={ev} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-});
-
-const EventLogEntry = React.memo(function EventLogEntry({ event: ev }: { event: EventEntry }) {
-  return (
-    <div className="border border-gray-100 rounded-lg p-3 text-xs">
-      <div className="flex items-center justify-between mb-1">
-        <span className={`font-bold ${ev.listener ? 'text-green-700' : 'text-orange-600'}`}>
-          {ev.listener ? `📥 ${ev.listener}` : `⚡ ${ev.name}`}
-        </span>
-        <span className="text-gray-400">{ev.timestamp}</span>
-      </div>
-      {ev.listener && <p className="text-gray-400 mb-1 text-xs">handles: {ev.name}</p>}
-      <pre className="bg-gray-50 rounded p-2 text-gray-700 overflow-x-auto whitespace-pre-wrap break-all">
-        {JSON.stringify(ev.payload, null, 2)}
-      </pre>
-    </div>
-  );
-});
-
-/* ═══════════════════════════════════════════════════════════════
    PRODUCT WIZARD
 ════════════════════════════════════════════════════════════════ */
 function ProductWizard({
   onComplete,
   onCancel,
-  onEvent,
 }: {
   onComplete: () => void;
   onCancel: () => void;
-  onEvent: (name: string, payload: Record<string, unknown>, listener?: string) => void;
 }) {
   const [step, setStep] = useState<WizardStep>(1);
   const [product, setProduct] = useState<Product | null>(null);
@@ -526,8 +445,6 @@ function ProductWizard({
     setLoading(true);
     try {
       await activateProduct(product.id);
-      onEvent('ProductActivatedEvent', { productId: product.id, merchantId: product.merchantId, categoryId: product.categoryId });
-      onEvent('ProductActivatedEvent', { message: `Inventory initialization ready for product ${product.id}` }, 'InventoryListener');
       setStep(4);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al activar');
@@ -629,7 +546,7 @@ function ProductWizard({
       {step === 3 && (
         <div className="space-y-4">
           <p className="text-sm text-gray-500">
-            El producto está listo. Al activar se dispara <code className="bg-gray-100 px-1 rounded text-xs">ProductActivatedEvent</code>.
+            El producto está listo para ser activado.
           </p>
           <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
             <div className="flex justify-between"><span className="text-gray-500">ID:</span><span className="font-mono">{product?.id}</span></div>
@@ -638,7 +555,7 @@ function ProductWizard({
           </div>
           <button onClick={handleActivate} disabled={loading}
             className="w-full bg-[#c1292e] hover:bg-red-700 disabled:opacity-60 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
-            {loading ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Activando...</> : '⚡ Activar Producto'}
+            {loading ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Activando...</> : 'Activar producto'}
           </button>
         </div>
       )}
@@ -649,7 +566,7 @@ function ProductWizard({
             <span className="text-2xl">✅</span>
             <div>
               <p className="font-semibold text-green-800">¡Producto activado!</p>
-              <p className="text-sm text-green-600">ProductActivatedEvent disparado → InventoryListener ejecutado</p>
+              <p className="text-sm text-green-600">El producto ya está disponible en el catálogo</p>
             </div>
           </div>
           <button onClick={onComplete}

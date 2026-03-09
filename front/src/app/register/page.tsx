@@ -4,19 +4,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { register } from '@/lib/api/auth';
 
-interface EventEntry {
-  name: string;
-  payload: Record<string, unknown>;
-  timestamp: string;
-}
-
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [firedEvent, setFiredEvent] = useState<EventEntry | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,11 +18,6 @@ export default function RegisterPage() {
     try {
       await register(email, password);
       setSuccess(true);
-      setFiredEvent({
-        name: 'UserRegisteredEvent',
-        payload: { email, userId: '(asignado por el servidor)' },
-        timestamp: new Date().toLocaleTimeString(),
-      });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error en el registro');
     } finally {
@@ -45,7 +33,6 @@ export default function RegisterPage() {
         </div>
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="w-full max-w-sm space-y-4">
-            {/* Success */}
             <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
               <span className="text-2xl">✅</span>
               <div>
@@ -53,25 +40,6 @@ export default function RegisterPage() {
                 <p className="text-sm text-green-600">{email}</p>
               </div>
             </div>
-
-            {/* Event fired */}
-            {firedEvent && (
-              <div className="border border-orange-200 bg-orange-50 rounded-xl p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">⚡</span>
-                  <span className="text-sm font-bold text-orange-800">
-                    Evento disparado: {firedEvent.name}
-                  </span>
-                  <span className="ml-auto text-xs text-orange-500">{firedEvent.timestamp}</span>
-                </div>
-                <div className="bg-orange-100 rounded-lg p-3 font-mono text-xs text-orange-900">
-                  <pre>{JSON.stringify(firedEvent.payload, null, 2)}</pre>
-                </div>
-                <p className="text-xs text-orange-700">
-                  → El listener en el backend registró el evento y puede notificar sistemas externos de forma desacoplada.
-                </p>
-              </div>
-            )}
 
             <Link
               href="/login"
@@ -95,7 +63,7 @@ export default function RegisterPage() {
         <div className="w-full max-w-sm">
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Crear cuenta</h1>
           <p className="text-sm text-gray-500 mb-8">
-            El registro dispara el evento <code className="bg-gray-100 px-1 rounded text-xs">UserRegisteredEvent</code> en el backend
+            Completá tus datos para crear una cuenta
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
