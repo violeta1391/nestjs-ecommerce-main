@@ -1,21 +1,14 @@
-const { register } = require('tsconfig-paths');
-const { resolve } = require('path');
-
-register({
-  baseUrl: resolve(__dirname, '..'),
-  paths: {},
-});
-
-const { NestFactory } = require('@nestjs/core');
-const { ExpressAdapter } = require('@nestjs/platform-express');
-const { ValidationPipe } = require('@nestjs/common');
-const { AppModule } = require('../src/app.module');
-const express = require('express');
+import { NestFactory } from '@nestjs/core';
+import { ExpressAdapter } from '@nestjs/platform-express';
+import { ValidationPipe } from '@nestjs/common';
+import { AppModule } from '../src/app.module';
+import * as express from 'express';
+import type { Request, Response } from 'express';
 
 const server = express();
 let isInitialized = false;
 
-async function bootstrap() {
+async function bootstrap(): Promise<void> {
   if (isInitialized) return;
 
   const app = await NestFactory.create(
@@ -33,12 +26,11 @@ async function bootstrap() {
   });
 
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
-
   await app.init();
   isInitialized = true;
 }
 
-export default async function handler(req, res) {
+export default async function handler(req: Request, res: Response): Promise<void> {
   await bootstrap();
   server(req, res);
 }

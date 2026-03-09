@@ -22,6 +22,7 @@
     "seed:run": "nest start --entryFile ./database/seed/seed.js",
     "seed:run:local": "node -r tsconfig-paths/register -r ts-node/register src/database/seed/seed.ts",
     "build:tsc": "tsc -p tsconfig.build.json",
+    "build:vercel": "tsc -p tsconfig.vercel.json && tsc-alias -p tsconfig.vercel.json",
     "typeorm": "npm run clean && npm run build && npx typeorm -d dist/database/migration/datasource.js",
     "typeorm:local": "node -r tsconfig-paths/register -r ts-node/register node_modules/.bin/typeorm -d src/database/migration/datasource.ts",
     "migration:generate": "npm run typeorm -- migration:generate src/database/migration/history/$npm_config_name",
@@ -48,6 +49,7 @@
     "pg": "^8.10.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.2.0",
+    "tsc-alias": "^1.8.16",
     "tsconfig-paths": "4.1.1",
     "typeorm": "^0.3.15"
   },
