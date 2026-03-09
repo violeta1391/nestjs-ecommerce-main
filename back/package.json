@@ -20,9 +20,13 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json --forceExit --detectOpenHandles --verbose",
     "seed:run": "nest start --entryFile ./database/seed/seed.js",
+    "seed:run:local": "node -r tsconfig-paths/register -r ts-node/register src/database/seed/seed.ts",
+    "build:tsc": "tsc -p tsconfig.build.json",
     "typeorm": "npm run clean && npm run build && npx typeorm -d dist/database/migration/datasource.js",
+    "typeorm:local": "node -r tsconfig-paths/register -r ts-node/register node_modules/.bin/typeorm -d src/database/migration/datasource.ts",
     "migration:generate": "npm run typeorm -- migration:generate src/database/migration/history/$npm_config_name",
     "migration:run": "npm run typeorm -- migration:run",
+    "migration:run:local": "npm run typeorm:local -- migration:run",
     "migration:revert": "npm run typeorm migration:revert"
   },
   "dependencies": {
